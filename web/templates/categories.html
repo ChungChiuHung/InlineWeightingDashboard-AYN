@@ -1,143 +1,87 @@
 {% extends "base.html" %}
 
-{% block content %}
-<select id="fishType"></select>
-<button id="btnWrite">寫入 PLC</button>
+{% block title %}Fish Categories - PLC Gateway{% endblock %}
 
-{% block scripts %}
-<script type="module" src="/static/js/categories.js"></script>
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Fish Category Management</h2>
+            <p class="text-gray-500 text-sm">Configure mapping between PLC Codes and Fish Names</p>
+        </div>
+        
+        <!-- Current Active Status Card (Small) -->
+        <div class="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md flex items-center gap-4">
+            <div>
+                <div class="text-xs opacity-75 uppercase font-semibold">Active on PLC</div>
+                <div class="font-mono text-2xl font-bold" id="active-code-display">----</div>
+            </div>
+            <div class="h-8 w-px bg-white opacity-25"></div>
+            <div class="text-lg font-medium" id="active-name-display">Waiting...</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Add/Edit Form -->
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-lg shadow-md p-6 sticky top-6">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4 border-b pb-2">
+                    <i class="fa-solid fa-pen-to-square mr-2"></i>Edit / Add
+                </h3>
+                
+                <form id="category-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">PLC Code (Max 4 chars)</label>
+                        <input type="text" id="input-code" maxlength="4" placeholder="e.g. F001" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono uppercase" required>
+                        <p class="text-xs text-gray-400 mt-1">This code is stored in the PLC.</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Display Name (Chinese)</label>
+                        <input type="text" id="input-name" placeholder="e.g. 白鯧 (Pomfret)" 
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+
+                    <div class="pt-2 flex gap-2">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition">
+                            <i class="fa-solid fa-save mr-1"></i> Save
+                        </button>
+                        <button type="button" id="btn-clear" class="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-600">
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right Column: List -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Code</th>
+                            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-gray-100">
+                        <!-- Rows will be injected by JS -->
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-gray-400">Loading data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
-<h2>魚種編號管理</h2>
-
-<form id="categoryForm" class="category-form">
-
-  <div class="category-card">
-    <label>分類種類 A 編號</label>
-    <input type="text"
-           id="category_a_code"
-           data-tag="category_a_code"
-           maxlength="8"
-           placeholder="例如：FISH-A">
-  </div>
-
-  <!-- 若未來擴充 B / C，只需複製這段
-  <div class="category-card">
-    <label>分類種類 B 編號</label>
-    <input type="text"
-           id="category_b_code"
-           data-tag="category_b_code">
-  </div>
-  -->
-
-  <div class="form-actions">
-    <button type="button" class="btn secondary" onclick="reloadValues()">回復</button>
-    <button type="submit" class="btn primary">儲存</button>
-  </div>
-
-</form>
-
-<script>
-async function loadCurrentValues() {
-  const res = await fetch("/tags");
-  const tags = await res.json();
-
-  document.querySelectorAll("input[data-tag]").forEach(input => {
-    const tag = input.dataset.tag;
-    if (tags[tag] !== undefined && tags[tag] !== null) {
-      input.value = tags[tag];
-    }
-  });
-}
-
-async function saveValues(e) {
-  e.preventDefault();
-
-  if (!confirm("確認寫入魚種編號？")) {
-    return;
-  }
-
-  const inputs = document.querySelectorAll("input[data-tag]");
-  for (const input of inputs) {
-    const tag = input.dataset.tag;
-    const value = input.value.trim();
-
-    const res = await fetch(`/write/${tag}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value })
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      alert(`寫入 ${tag} 失敗：${err}`);
-      return;
-    }
-  }
-
-  alert("魚種編號已成功寫入");
-}
-
-function reloadValues() {
-  loadCurrentValues();
-}
-
-document.getElementById("categoryForm")
-  .addEventListener("submit", saveValues);
-
-loadCurrentValues();
-</script>
-
-<style>
-.category-form {
-  margin-top: 16px;
-  max-width: 480px;
-}
-
-.category-card {
-  background: #fff;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-.category-card label {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 8px;
-  color: #374151;
-}
-
-.category-card input {
-  width: 100%;
-  padding: 8px;
-  font-size: 14px;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.btn {
-  padding: 8px 16px;
-  font-size: 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  border: none;
-}
-
-.btn.primary {
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn.secondary {
-  background: #e5e7eb;
-}
-</style>
-
+{% block scripts %}
+<script src="/static/js/categories.js"></script>
 {% endblock %}
