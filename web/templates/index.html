@@ -52,21 +52,23 @@
 <!-- Charts Row -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Real-time Weight Trend -->
-    <div class="bg-white rounded-lg shadow-md p-4">
+    <div class="bg-white rounded-lg shadow-md p-4 flex flex-col">
         <h3 class="text-gray-600 font-bold mb-4 text-sm border-b pb-2">
             <i class="fa-solid fa-chart-line mr-2"></i> 即時產量趨勢 (近 1 分鐘)
         </h3>
-        <div class="relative h-64 w-full">
+        <!-- Added explicit height style to container -->
+        <div class="relative w-full flex-grow" style="min-height: 300px;">
             <canvas id="weightChart"></canvas>
         </div>
     </div>
 
     <!-- Production Stats -->
-    <div class="bg-white rounded-lg shadow-md p-4">
+    <div class="bg-white rounded-lg shadow-md p-4 flex flex-col">
         <h3 class="text-gray-600 font-bold mb-4 text-sm border-b pb-2">
             <i class="fa-solid fa-chart-pie mr-2"></i> 今日產量統計
         </h3>
-        <div class="relative h-64 w-full flex justify-center">
+        <!-- Added explicit height style to container -->
+        <div class="relative w-full flex-grow flex justify-center items-center" style="min-height: 300px;">
             <canvas id="productionChart"></canvas>
         </div>
     </div>

@@ -1,181 +1,101 @@
 {% extends "base.html" %}
 
+{% block title %}歷史紀錄 - 產線秤重管理系統{% endblock %}
+
 {% block content %}
-<h2>歷史紀錄</h2>
+<div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">歷史紀錄查詢</h2>
+            <p class="text-gray-500 text-sm">查詢過往的生產重量與分佈數據</p>
+        </div>
+        <!-- Debug Tool -->
+        <button onclick="generateTestData()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded hover:bg-gray-200 border border-gray-300 transition" title="生成 100 筆隨機數據以供測試">
+            <i class="fa-solid fa-vial mr-1"></i> 生成測試資料
+        </button>
+    </div>
 
-<!-- Query Panel -->
-<div class="query-panel">
-  <label>
-    起始時間
-    <input type="datetime-local" id="startTime">
-  </label>
+    <!-- Query Panel -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form id="query-form" class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">起始時間</label>
+                <input type="datetime-local" id="startTime" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">結束時間</label>
+                <input type="datetime-local" id="endTime" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+            </div>
 
-  <label>
-    結束時間
-    <input type="datetime-local" id="endTime">
-  </label>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">選擇魚種</label>
+                <select id="fishCode" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-48 focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <option value="">載入中...</option>
+                </select>
+            </div>
 
-  <label>
-    資料項目
-    <select id="tagSelect">
-      <option value="weight_now">即時秤重</option>
-      <option value="total_weight">總重</option>
-      <option value="total_count">總隻數</option>
-      <option value="bucket1_count">分規1隻數</option>
-      <option value="bucket2_count">分規2隻數</option>
-      <option value="bucket3_count">分規3隻數</option>
-      <option value="bucket4_count">分規4隻數</option>
-      <option value="bucket5_count">分規5隻數</option>
-      <option value="bucket6_count">分規6隻數</option>
-      <option value="bucket7_count">分規7隻數</option>
-    </select>
-  </label>
+            <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 transition shadow-sm">
+                <i class="fa-solid fa-magnifying-glass mr-2"></i> 查詢
+            </button>
+        </form>
+    </div>
 
-  <button onclick="queryHistory()">查詢</button>
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- 1. Histogram (Weight Distribution) -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h3 class="text-gray-700 font-bold mb-4 text-sm border-b pb-2 flex justify-between">
+                <span><i class="fa-solid fa-chart-column mr-2 text-indigo-500"></i> 重量分佈直方圖</span>
+                <span class="text-xs font-normal text-gray-400">頻率分佈 (Frequency)</span>
+            </h3>
+            <div class="relative h-64 w-full">
+                <canvas id="histogramChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 2. Line Chart (Trend) -->
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h3 class="text-gray-700 font-bold mb-4 text-sm border-b pb-2 flex justify-between">
+                <span><i class="fa-solid fa-chart-line mr-2 text-blue-500"></i> 重量趨勢圖</span>
+                <span class="text-xs font-normal text-gray-400">時序變化 (Time Series)</span>
+            </h3>
+            <div class="relative h-64 w-full">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+            <span class="font-bold text-gray-700 text-sm">詳細資料列表</span>
+            <span id="record-count" class="text-xs bg-gray-200 px-2 py-1 rounded text-gray-600">0 筆</span>
+        </div>
+        <div class="overflow-x-auto max-h-[400px]">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead class="bg-gray-50 sticky top-0 shadow-sm">
+                    <tr>
+                        <th class="px-6 py-3 font-semibold text-gray-600">時間</th>
+                        <th class="px-6 py-3 font-semibold text-gray-600">代碼</th>
+                        <th class="px-6 py-3 font-semibold text-gray-600 text-right">重量 (g)</th>
+                        <th class="px-6 py-3 font-semibold text-gray-600">狀態</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table-body" class="divide-y divide-gray-100">
+                    <tr>
+                        <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                            請選擇條件並點擊查詢
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+{% endblock %}
 
-<!-- Table -->
-<div class="table-panel">
-  <table id="historyTable">
-    <thead>
-      <tr>
-        <th>時間</th>
-        <th>數值</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
-
-<!-- Chart -->
-<div class="chart-panel">
-  <canvas id="historyChart"></canvas>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-let chart;
-
-function toTs(dt) {
-  return Math.floor(new Date(dt).getTime() / 1000);
-}
-
-async function queryHistory() {
-  const tag = document.getElementById("tagSelect").value;
-  const start = toTs(document.getElementById("startTime").value);
-  const end = toTs(document.getElementById("endTime").value);
-
-  const res = await fetch(`/history/${tag}?start=${start}&end=${end}`);
-  const data = await res.json();
-
-  renderTable(data);
-  renderChart(data, tag);
-}
-
-function renderTable(data) {
-  const tbody = document.querySelector("#historyTable tbody");
-  tbody.innerHTML = "";
-
-  data.forEach(row => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${new Date(row.ts * 1000).toLocaleString()}</td>
-      <td>${row.value}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function renderChart(data, tag) {
-  const labels = data.map(d =>
-    new Date(d.ts * 1000).toLocaleTimeString()
-  );
-  const values = data.map(d => d.value);
-
-  if (chart) chart.destroy();
-
-  chart = new Chart(document.getElementById("historyChart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: tag,
-        data: values,
-        borderWidth: 2,
-        fill: false,
-        tension: 0.2
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { display: true },
-        y: { display: true }
-      }
-    }
-  });
-}
-
-/* default time range = today */
-(function init() {
-  const now = new Date();
-  const start = new Date(now.getTime() - 3600 * 1000);
-
-  document.getElementById("startTime").value =
-    start.toISOString().slice(0,16);
-  document.getElementById("endTime").value =
-    now.toISOString().slice(0,16);
-})();
-</script>
-
-<style>
-.query-panel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 16px 0;
-  align-items: flex-end;
-}
-
-.query-panel label {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-}
-
-.query-panel button {
-  padding: 8px 16px;
-}
-
-.table-panel {
-  background: #fff;
-  border-radius: 6px;
-  overflow: auto;
-  max-height: 300px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th, td {
-  border: 1px solid #e5e7eb;
-  padding: 8px;
-  text-align: center;
-  font-size: 13px;
-}
-
-th {
-  background: #f3f4f6;
-}
-
-.chart-panel {
-  background: #fff;
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 6px;
-}
-</style>
-
+{% block scripts %}
+<script type="module" src="/static/js/history.js?v={{ v }}"></script>
 {% endblock %}

@@ -1,9 +1,12 @@
 # 系統設定
 system:
   name: "PLC Gateway"
-  version: "2.2.0"
+  version: "2.4.0"
   simulation_mode: true
   history_interval: 5.0
+  simulation:
+    weight_update_interval: 1.0
+    fish_update_interval: 600.0
 
 # PLC 連線設定
 plc:

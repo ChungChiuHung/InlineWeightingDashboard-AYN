@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 import time
+import random
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, Request, WebSocketDisconnect, HTTPException
 from fastapi.templating import Jinja2Templates
@@ -60,13 +62,13 @@ class FishTypeItem(BaseModel):
 
 class RecipeItem(BaseModel):
     fish_code: str
-    params: dict # Key-value pairs for bucket settings
+    params: dict 
 
 # --- FastAPI 生命周期管理 ---
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 啟動時初始化資料庫 (建立資料表)
+    # 啟動時初始化資料庫
     try:
         logger.info("Initializing database...")
         historian.init_db()
@@ -88,11 +90,10 @@ app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 templates = Jinja2Templates(directory="web/templates")
 
-# [關鍵] 更新全域版本號為 2.3.1
-# 這會透過 base.html 的 Import Map 強制所有 JS 檔案重新載入
-templates.env.globals['v'] = "2.3.1"
+# 設定全域版本號 (Cache Busting)
+templates.env.globals['v'] = "2.4.0"
 
-# --- Page Routes (前端頁面路由) ---
+# --- Page Routes ---
 
 @app.get("/")
 async def index(request: Request):
@@ -114,22 +115,18 @@ async def buckets_page(request: Request):
 async def system_page(request: Request):
     return templates.TemplateResponse("system.html", {"request": request})
 
-# --- Data API Routes (後端資料接口) ---
+# --- Data API Routes ---
 
 @app.get("/api/status")
 async def get_system_status():
-    """Get current system data snapshot (PLC values)"""
     return gateway.get_snapshot()
 
 @app.get("/status")
 async def health_check():
-    """Health check endpoint for systemd monitoring"""
     try:
-        # Check if gateway is running
         if not gateway.running:
             raise HTTPException(status_code=503, detail="Gateway not running")
         
-        # Check if we have recent data (updated in last 30 seconds)
         if hasattr(gateway, 'last_update'):
             time_since_update = time.time() - gateway.last_update
             if time_since_update > 30:
@@ -149,7 +146,6 @@ async def health_check():
 
 @app.get("/api/history/stats")
 async def get_daily_stats():
-    """Get daily production statistics"""
     return historian.get_daily_stats()
 
 @app.get("/api/history")
@@ -159,7 +155,6 @@ async def get_history(
     fish_code: str = None,
     limit: int = 1000
 ):
-    """Get historical data with optional filters"""
     if limit > 10000:
         raise HTTPException(status_code=400, detail="Limit cannot exceed 10000")
     
@@ -171,16 +166,14 @@ async def get_history(
     )
     return data
 
-# --- Fish Type Management APIs (CRUD) ---
+# --- Fish Type Management APIs ---
 
 @app.get("/api/fish-types")
 async def get_fish_types():
-    """取得所有魚種列表"""
     return historian.get_all_fish_types()
 
 @app.post("/api/fish-types")
 async def save_fish_type(item: FishTypeItem):
-    """新增或更新魚種"""
     code = item.code.strip().upper()
     name = item.name.strip()
     
@@ -196,7 +189,6 @@ async def save_fish_type(item: FishTypeItem):
 
 @app.delete("/api/fish-types/{code}")
 async def delete_fish_type(code: str):
-    """刪除魚種"""
     if not code or len(code) > 10:
         raise HTTPException(status_code=400, detail="Invalid code")
     
@@ -205,46 +197,81 @@ async def delete_fish_type(code: str):
         raise HTTPException(status_code=500, detail="Failed to delete")
     return {"status": "ok", "code": code}
 
-# --- Control APIs (PLC Write) ---
+# --- Control APIs ---
 
 @app.post("/api/control/category")
 async def set_category(data: dict):
-    """設定當前生產魚種 (寫入 PLC)"""
     code = data.get("code", "").strip().upper()
-    
     if not code or len(code) != 4 or not code.isalnum():
         raise HTTPException(status_code=400, detail="Invalid code format")
     
     success = await write_controller.set_fish_type(code)
     return {"success": success, "code": code}
 
-# --- Recipe (Buckets) Management APIs ---
+# --- Recipe Management APIs ---
 
 @app.get("/api/recipes/{code}")
 async def get_recipe(code: str):
-    """取得指定魚種的配方設定 (從 DB)"""
     return historian.get_recipe(code)
 
 @app.post("/api/recipes")
 async def save_recipe(item: RecipeItem):
-    """儲存配方到資料庫"""
     if not historian.save_recipe(item.fish_code, item.params):
         raise HTTPException(status_code=500, detail="Failed to save recipe")
     return {"status": "ok"}
 
 @app.post("/api/control/write-recipe")
 async def write_recipe_plc(item: RecipeItem):
-    """將配方寫入 PLC"""
     success = await write_controller.write_recipe(item.params)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to write to PLC")
     return {"success": True}
 
+# --- Debug API (For Chart Testing) ---
+@app.post("/api/debug/seed")
+async def seed_data():
+    """生成隨機歷史資料供測試圖表使用"""
+    logger.info("Generating seed data...")
+    import sqlite3
+    try:
+        # 直接使用 historian 的 connection manager
+        with historian.get_connection() as conn:
+            # 產生過去 24 小時的數據
+            base_time = datetime.now()
+            records = []
+            
+            fish_opts = ['F001', 'F002', 'F003', 'F004']
+            
+            for i in range(100):
+                # 隨機時間 (過去 24 小時內)
+                delta_min = random.randint(0, 1440)
+                ts = (base_time - timedelta(minutes=delta_min)).strftime('%Y-%m-%d %H:%M:%S')
+                
+                # 隨機魚種
+                code = random.choice(fish_opts)
+                
+                # 隨機重量 (常態分佈模擬)
+                # 平均值 500g, 標準差 50g
+                weight = round(random.gauss(500, 50), 2)
+                if weight < 0: weight = 0
+                
+                status = 'RUN'
+                
+                records.append((ts, code, weight, status))
+            
+            conn.executemany(
+                'INSERT INTO history (timestamp, fish_code, weight, status) VALUES (?, ?, ?, ?)',
+                records
+            )
+        return {"status": "ok", "message": "Inserted 100 test records"}
+    except Exception as e:
+        logger.error(f"Seed failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- WebSocket ---
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time data updates"""
     await ws_hub.connect(websocket)
     try:
         while True:
@@ -253,7 +280,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         ws_hub.disconnect(websocket)
-        logger.info("WebSocket client disconnected normally")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         ws_hub.disconnect(websocket)

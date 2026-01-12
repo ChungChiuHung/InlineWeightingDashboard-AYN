@@ -12,23 +12,14 @@ export async function saveFishType(code, name) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, name })
   });
-  
-  if (!r.ok) {
-    const err = await r.json();
-    throw new Error(err.detail || 'Save failed');
-  }
+  if (!r.ok) throw new Error('Save failed');
   return await r.json();
 }
 
 // 刪除魚種 (DELETE)
 export async function deleteFishType(code) {
-  const r = await fetch(`/api/fish-types/${code}`, {
-    method: 'DELETE'
-  });
-  
-  if (!r.ok) {
-    throw new Error('Delete failed');
-  }
+  const r = await fetch(`/api/fish-types/${code}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error('Delete failed');
   return await r.json();
 }
 
@@ -39,8 +30,7 @@ export async function setCategory(code) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code })
   });
-  
-  if (!r.ok) throw new Error('Control command failed');
+  if (!r.ok) throw new Error('Control failed');
   return await r.json();
 }
 
@@ -58,16 +48,29 @@ export async function getDailyStats() {
   return await r.json();
 }
 
+// 取得歷史資料 (History 頁面用)
+export async function getHistoryData(query = {}) {
+  const params = new URLSearchParams(query);
+  const r = await fetch(`/api/history?${params.toString()}`);
+  if (!r.ok) throw new Error('Failed to fetch history');
+  return await r.json();
+}
+
+// [新增] 生成測試資料 (Debug)
+export async function seedTestData() {
+  const r = await fetch('/api/debug/seed', { method: 'POST' });
+  if (!r.ok) throw new Error('Seeding failed');
+  return await r.json();
+}
+
 // --- 分規設定 / 配方管理相關 API ---
 
-// 取得指定魚種的配方設定 (從資料庫)
 export async function getRecipe(fishCode) {
   const r = await fetch(`/api/recipes/${fishCode}`);
   if (!r.ok) throw new Error('Failed to load recipe');
   return await r.json();
 }
 
-// 儲存配方設定到資料庫
 export async function saveRecipe(fishCode, params) {
   const r = await fetch('/api/recipes', {
     method: 'POST',
@@ -78,7 +81,6 @@ export async function saveRecipe(fishCode, params) {
   return await r.json();
 }
 
-// 將配方設定寫入 PLC 設備
 export async function writeRecipeToPLC(fishCode, params) {
   const r = await fetch('/api/control/write-recipe', {
     method: 'POST',
@@ -89,7 +91,6 @@ export async function writeRecipeToPLC(fishCode, params) {
   return await r.json();
 }
 
-// 通用寫入 (保留給其他簡單寫入需求)
 export async function writeTag(tag, value) {
   return fetch(`/write/${tag}`, {
     method: 'POST',
