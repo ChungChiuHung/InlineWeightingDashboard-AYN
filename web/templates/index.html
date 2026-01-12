@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+  魚種：<span id="category_a_code">---</span>
+</div>
+
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}
+
+<h2>機台狀態總覽</h2>
+
+<div class="dashboard">
+
+  <!-- Machine Status -->
+  <div class="card status-card" id="machineStatusCard">
+    <div class="card-title">機台狀態</div>
+    <div class="status-value" id="machineStatus">--</div>
+    <div class="status-desc" id="machineStatusDesc"></div>
+  </div>
+
+  <!-- Live Weight -->
+  <div class="card weight-card">
+    <div class="card-title">即時秤重</div>
+    <div class="weight-value" id="weightNow">--</div>
+    <div class="unit">g</div>
+  </div>
+
+  <!-- KPI -->
+  <div class="card kpi-card">
+    <div class="card-title">累積總重</div>
+    <div class="kpi-value" id="totalWeight">--</div>
+    <div class="unit">g</div>
+  </div>
+
+  <div class="card kpi-card">
+    <div class="card-title">累積總隻數</div>
+    <div class="kpi-value" id="totalCount">--</div>
+    <div class="unit">pcs</div>
+  </div>
+
+</div>
+
+<script>
+/* ===== status ===== */
+async function loadStatus() {
+  const res = await fetch("/status");
+  const data = await res.json();
+
+  const statusMap = {
+    1: { text: "RUN", color: "#16a34a" },
+    2: { text: "IDLE", color: "#ca8a04" },
+    3: { text: "ALARM", color: "#dc2626" },
+    4: { text: "STOP", color: "#6b7280" }
+  };
+
+  const s = statusMap[data.machine_status] || {
+    text: "UNKNOWN",
+    color: "#6b7280"
+  };
+
+  const card = document.getElementById("machineStatusCard");
+  card.style.borderLeft = `6px solid ${s.color}`;
+
+  document.getElementById("machineStatus").innerText = s.text;
+  document.getElementById("machineStatusDesc").innerText =
+    data.machine_error ? `Error ${data.machine_error}` : "";
+}
+
+/* ===== websocket tags ===== */
+function connectWS() {
+  const ws = new WebSocket(`ws://${location.host}/ws/tags`);
+
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "update") {
+      const { tag, value } = msg;
+
+      if (tag === "weight_now") {
+        document.getElementById("weightNow").innerText = value;
+      }
+      if (tag === "total_weight") {
+        document.getElementById("totalWeight").innerText = value;
+      }
+      if (tag === "total_count") {
+        document.getElementById("totalCount").innerText = value;
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    setTimeout(connectWS, 2000);
+  };
+}
+
+loadStatus();
+connectWS();
+</script>
+
+<style>
+/* ===== Dashboard Layout ===== */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 6px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.card-title {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+/* Status */
+.status-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.status-desc {
+  font-size: 12px;
+  color: #dc2626;
+  margin-top: 4px;
+}
+
+/* Weight */
+.weight-value {
+  font-size: 36px;
+  font-weight: 700;
+}
+
+/* KPI */
+.kpi-value {
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.unit {
+  font-size: 12px;
+  color: #6b7280;
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Database (通常不建議將運作中的 DB 上傳，除非是空的結構檔)
+*.db
+*.sqlite3
+/data/*.db
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

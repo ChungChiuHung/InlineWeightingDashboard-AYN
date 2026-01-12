@@ -1,0 +1,10 @@
+[
+  { "value": 0,  "code": "NO_ERROR",           "text": "No Error",           "category": "Normal" },
+  { "value": 1,  "code": "LOADCELL_FAULT",     "text": "Loadcell Fault",     "category": "Hardware" },
+  { "value": 2,  "code": "MOTOR_OVERLOAD",     "text": "Motor Overload",     "category": "Hardware" },
+  { "value": 3,  "code": "COMMUNICATION_FAULT","text": "Communication Fault","category": "Network" },
+  { "value": 4,  "code": "EMERGENCY_STOP",     "text": "Emergency Stop",     "category": "Safety" },
+  { "value": 5,  "code": "AIR_PRESSURE_LOW",   "text": "Air Pressure Low",   "category": "Utility" },
+  { "value": 6,  "code": "SERVO_ALARM",         "text": "Servo Alarm",        "category": "Motion" },
+  { "value": 99, "code": "UNKNOWN_ERROR",      "text": "Unknown Error",      "category": "Unknown" }
+]

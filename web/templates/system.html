@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>系統狀態</h2>
+
+<!-- System Health -->
+<div class="system-card">
+  <h3>Gateway 狀態</h3>
+  <table class="info-table">
+    <tr>
+      <th>服務狀態</th>
+      <td id="svcStatus">--</td>
+    </tr>
+    <tr>
+      <th>模式</th>
+      <td id="runMode">--</td>
+    </tr>
+  </table>
+</div>
+
+<!-- Enum Tables -->
+<div class="system-card">
+  <h3>機台狀態 Enum</h3>
+  <table class="enum-table" id="machineStatusTable">
+    <thead>
+      <tr>
+        <th>值</th>
+        <th>名稱</th>
+        <th>說明</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="system-card">
+  <h3>異常代碼 Enum</h3>
+  <table class="enum-table" id="machineErrorTable">
+    <thead>
+      <tr>
+        <th>值</th>
+        <th>名稱</th>
+        <th>說明</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="system-card">
+  <h3>警報代碼 Enum</h3>
+  <table class="enum-table" id="machineAlarmTable">
+    <thead>
+      <tr>
+        <th>值</th>
+        <th>名稱</th>
+        <th>說明</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+async function loadHealth() {
+  const res = await fetch("/health");
+  const data = await res.json();
+
+  document.getElementById("svcStatus").innerText = "OK";
+  document.getElementById("runMode").innerText = data.mode;
+}
+
+async function loadEnums() {
+  const res = await fetch("/enums");
+  const enums = await res.json();
+
+  renderEnum("machine_status", enums.machine_status, "machineStatusTable");
+  renderEnum("machine_error", enums.machine_error, "machineErrorTable");
+  renderEnum("machine_alarm", enums.machine_alarm, "machineAlarmTable");
+}
+
+function renderEnum(name, list, tableId) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = "";
+
+  if (!list || list.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="3">無資料</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  list.forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.value}</td>
+      <td>${item.name || ""}</td>
+      <td>${item.desc || ""}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+loadHealth();
+loadEnums();
+</script>
+
+<style>
+.system-card {
+  background: #fff;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.system-card h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.info-table,
+.enum-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.info-table th,
+.info-table td,
+.enum-table th,
+.enum-table td {
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: center;
+}
+
+.info-table th,
+.enum-table th {
+  background: #f3f4f6;
+  width: 160px;
+}
+</style>
+
+{% endblock %}

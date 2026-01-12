@@ -1,0 +1,7 @@
+[
+  { "value": 0, "code": "UNKNOWN", "text": "Unknown", "level": "gray" },
+  { "value": 1, "code": "RUN",     "text": "Running", "level": "green" },
+  { "value": 2, "code": "IDLE",    "text": "Idle",    "level": "yellow" },
+  { "value": 3, "code": "ALARM",   "text": "Alarm",   "level": "red" },
+  { "value": 4, "code": "STOP",    "text": "Stopped", "level": "gray" }
+]

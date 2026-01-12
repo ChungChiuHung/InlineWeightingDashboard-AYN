@@ -1,0 +1,8 @@
+Value,Chinese,English,StopMachine,Severity
+0,無警報,No Alarm,No,Info
+1,分料延遲,Sorting Delay,No,Warning
+2,分規滿料,Bucket Full,No,Warning
+3,產能偏低,Low Throughput,No,Info
+4,秤重不穩定,Unstable Weight,No,Warning
+5,清潔提醒,Cleaning Required,No,Info
+99,未知警報,Unknown Alarm,Depends,Warning

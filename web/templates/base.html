@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLC Gateway</title>
+
+  <link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn">☰</button>
+    <span class="app-title">PLC Gateway</span>
+  </header>
+
+  <!-- Layout -->
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <nav>
+        <a href="/">Home</a>
+        <a href="/ui/buckets">分規資訊管理</a>
+        <a href="/ui/categories">魚種編號管理</a>
+        <a href="/ui/history">歷史紀錄</a>
+        <a href="/ui/system">系統狀態</a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      {% block content %}
+      <h2>Welcome</h2>
+      <p>WebUI skeleton ready.</p>
+      {% endblock %}
+    </main>
+  </div>
+
+  <!-- Sidebar toggle (mobile) -->
+  <script type="module" src="/static/js/api.js">
+    const menuBtn = document.getElementById("menuBtn");
+    const sidebar = document.getElementById("sidebar");
+
+    menuBtn.addEventListener("click", () => {
+      sidebar.classList.toggle("open");
+    });
+
+    // auto close on mobile after click
+    sidebar.querySelectorAll("a").forEach(a => {
+      a.addEventListener("click", () => {
+        sidebar.classList.remove("open");
+      });
+    });
+  </script>
+</body>
+</html>

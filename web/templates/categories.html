@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block content %}
+<select id="fishType"></select>
+<button id="btnWrite">寫入 PLC</button>
+
+{% block scripts %}
+<script type="module" src="/static/js/categories.js"></script>
+{% endblock %}
+
+<h2>魚種編號管理</h2>
+
+<form id="categoryForm" class="category-form">
+
+  <div class="category-card">
+    <label>分類種類 A 編號</label>
+    <input type="text"
+           id="category_a_code"
+           data-tag="category_a_code"
+           maxlength="8"
+           placeholder="例如：FISH-A">
+  </div>
+
+  <!-- 若未來擴充 B / C，只需複製這段
+  <div class="category-card">
+    <label>分類種類 B 編號</label>
+    <input type="text"
+           id="category_b_code"
+           data-tag="category_b_code">
+  </div>
+  -->
+
+  <div class="form-actions">
+    <button type="button" class="btn secondary" onclick="reloadValues()">回復</button>
+    <button type="submit" class="btn primary">儲存</button>
+  </div>
+
+</form>
+
+<script>
+async function loadCurrentValues() {
+  const res = await fetch("/tags");
+  const tags = await res.json();
+
+  document.querySelectorAll("input[data-tag]").forEach(input => {
+    const tag = input.dataset.tag;
+    if (tags[tag] !== undefined && tags[tag] !== null) {
+      input.value = tags[tag];
+    }
+  });
+}
+
+async function saveValues(e) {
+  e.preventDefault();
+
+  if (!confirm("確認寫入魚種編號？")) {
+    return;
+  }
+
+  const inputs = document.querySelectorAll("input[data-tag]");
+  for (const input of inputs) {
+    const tag = input.dataset.tag;
+    const value = input.value.trim();
+
+    const res = await fetch(`/write/${tag}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value })
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      alert(`寫入 ${tag} 失敗：${err}`);
+      return;
+    }
+  }
+
+  alert("魚種編號已成功寫入");
+}
+
+function reloadValues() {
+  loadCurrentValues();
+}
+
+document.getElementById("categoryForm")
+  .addEventListener("submit", saveValues);
+
+loadCurrentValues();
+</script>
+
+<style>
+.category-form {
+  margin-top: 16px;
+  max-width: 480px;
+}
+
+.category-card {
+  background: #fff;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.category-card label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #374151;
+}
+
+.category-card input {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.btn.secondary {
+  background: #e5e7eb;
+}
+</style>
+
+{% endblock %}

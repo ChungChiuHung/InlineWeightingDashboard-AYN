@@ -1,0 +1,9 @@
+[
+  { "value": 0,  "code": "NO_ALARM",          "text": "No Alarm",          "severity": "Info" },
+  { "value": 1,  "code": "SORTING_DELAY",    "text": "Sorting Delay",    "severity": "Warning" },
+  { "value": 2,  "code": "BUCKET_FULL",      "text": "Bucket Full",      "severity": "Warning" },
+  { "value": 3,  "code": "LOW_THROUGHPUT",   "text": "Low Throughput",   "severity": "Info" },
+  { "value": 4,  "code": "UNSTABLE_WEIGHT",  "text": "Unstable Weight",  "severity": "Warning" },
+  { "value": 5,  "code": "CLEANING_REQUIRED","text": "Cleaning Required","severity": "Info" },
+  { "value": 99, "code": "UNKNOWN_ALARM",    "text": "Unknown Alarm",    "severity": "Warning" }
+]

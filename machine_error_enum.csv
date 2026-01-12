@@ -1,0 +1,9 @@
+Value,Chinese,English,Category,Action
+0,無異常,No Error,Normal,None
+1,秤重感測器異常,Loadcell Fault,Hardware,Stop
+2,馬達過載,Motor Overload,Hardware,Stop
+3,通訊異常,Communication Fault,Network,Check Network
+4,急停觸發,Emergency Stop,Safety,Reset Required
+5,氣壓不足,Air Pressure Low,Utility,Check Air
+6,伺服異常,Servo Alarm,Motion,Reset Servo
+99,未知異常,Unknown Error,Unknown,Check System
