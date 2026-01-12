@@ -57,7 +57,6 @@ class ModbusClient:
             return rr.registers
         except Exception as e:
             logger.error(f"Read Exception at address {address}: {e}")
-            # Mark as disconnected to trigger reconnection
             self.connected = False
             return None
 
@@ -75,6 +74,5 @@ class ModbusClient:
             return True
         except Exception as e:
             logger.error(f"Write Exception at address {address}: {e}")
-            # Mark as disconnected to trigger reconnection
             self.connected = False
             return False

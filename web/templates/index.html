@@ -7,21 +7,21 @@
     <!-- MACHINE STATUS CARD -->
     <div id="card-status" class="rounded-lg shadow-md p-6 flex flex-col justify-between transition-colors duration-500 bg-white border-l-8 border-gray-300">
         <div class="flex justify-between items-start">
-            <h2 class="text-sm font-semibold uppercase tracking-widest opacity-80">Machine Status</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-widest opacity-80">機台狀態</h2>
             <i class="fa-solid fa-microchip text-2xl opacity-50"></i>
         </div>
         <div class="mt-4">
-            <span id="val-status" class="text-4xl font-black tracking-tight">WAITING...</span>
+            <span id="val-status" class="text-4xl font-black tracking-tight">等待中...</span>
         </div>
         <div class="mt-2 text-xs opacity-75">
-            Mode: <span id="val-mode">AUTO</span>
+            模式: <span id="val-mode">自動</span>
         </div>
     </div>
 
     <!-- CURRENT WEIGHT CARD -->
     <div class="bg-white rounded-lg shadow-md p-6 border-l-8 border-blue-500 flex flex-col justify-between">
         <div class="flex justify-between items-start">
-            <h2 class="text-gray-500 text-sm font-semibold uppercase tracking-widest">Current Weight</h2>
+            <h2 class="text-gray-500 text-sm font-semibold uppercase tracking-widest">即時重量</h2>
             <i class="fa-solid fa-scale-balanced text-blue-300 text-2xl"></i>
         </div>
         <div class="mt-4">
@@ -29,22 +29,22 @@
             <span class="text-xl text-gray-500 ml-1">kg</span>
         </div>
         <div class="mt-2 text-xs text-gray-400">
-            Sensor: Mettler Toledo
+            感測器: Mettler Toledo
         </div>
     </div>
 
     <!-- FISH CATEGORY CARD -->
     <div class="bg-white rounded-lg shadow-md p-6 border-l-8 border-purple-500 flex flex-col justify-between">
         <div class="flex justify-between items-start">
-            <h2 class="text-gray-500 text-sm font-semibold uppercase tracking-widest">Current Batch</h2>
+            <h2 class="text-gray-500 text-sm font-semibold uppercase tracking-widest">當前生產</h2>
             <i class="fa-solid fa-fish text-purple-300 text-2xl"></i>
         </div>
         <div class="mt-4">
             <div id="val-fish-name" class="text-3xl font-bold text-gray-800">---</div>
-            <div class="text-sm text-gray-400 font-mono mt-1">Code: <span id="val-fish-code">----</span></div>
+            <div class="text-sm text-gray-400 font-mono mt-1">代碼: <span id="val-fish-code">----</span></div>
         </div>
         <a href="/ui/categories" class="mt-2 text-xs text-purple-600 font-semibold hover:underline block">
-            <i class="fa-solid fa-gear mr-1"></i>Configure Categories
+            <i class="fa-solid fa-gear mr-1"></i> 設定魚種分類
         </a>
     </div>
 </div>
@@ -54,7 +54,7 @@
     <!-- Real-time Weight Trend -->
     <div class="bg-white rounded-lg shadow-md p-4">
         <h3 class="text-gray-600 font-bold mb-4 text-sm border-b pb-2">
-            <i class="fa-solid fa-chart-line mr-2"></i>Real-time Throughput (Last 1 min)
+            <i class="fa-solid fa-chart-line mr-2"></i> 即時產量趨勢 (近 1 分鐘)
         </h3>
         <div class="relative h-64 w-full">
             <canvas id="weightChart"></canvas>
@@ -64,7 +64,7 @@
     <!-- Production Stats -->
     <div class="bg-white rounded-lg shadow-md p-4">
         <h3 class="text-gray-600 font-bold mb-4 text-sm border-b pb-2">
-            <i class="fa-solid fa-chart-pie mr-2"></i>Production Count (Today)
+            <i class="fa-solid fa-chart-pie mr-2"></i> 今日產量統計
         </h3>
         <div class="relative h-64 w-full flex justify-center">
             <canvas id="productionChart"></canvas>
@@ -74,5 +74,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script type="module" src="/static/js/dashboard.js"></script>
+<!-- 加入版本號參數 v={{v}} 強制清除快取 -->
+<script type="module" src="/static/js/dashboard.js?v={{ v }}"></script>
 {% endblock %}

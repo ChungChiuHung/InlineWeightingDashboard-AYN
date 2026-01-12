@@ -1,9 +1,9 @@
 # 系統設定
 system:
   name: "PLC Gateway"
-  version: "2.1.0"
-  # 開發階段建議設為 true (使用模擬數據)，確認 UI 正常後再改 false (連接真實 PLC)
+  version: "2.2.0"
   simulation_mode: true
+  history_interval: 5.0
 
 # PLC 連線設定
 plc:
@@ -14,14 +14,25 @@ plc:
   # [關鍵] 暫存器地址設定
   # Gateway (讀取範圍), Parser (解析邏輯), WriteController (寫入地址) 都依賴此設定
   registers:
-    read_start: 40131  # 批量讀取的起始地址
-    read_count: 10     # 一次讀取的暫存器數量 (涵蓋下方所有訊號)
-    
-    # 訊號地址對應表 (Map)
+    # [修改] 擴大讀取範圍以涵蓋 40001 ~ 40132
+    read_start: 40001
+    read_count: 132  # 讀取長度
+
     map:
-      fish_code: 40131  # 魚種代碼 (String, 2 words)
-      weight: 40133     # 重量 (Float, 2 words)
-      status: 40135     # 狀態 (Int, 1 word)
+      weight_now: 40001         # 即時重量 (Dword)
+      start_time_year: 40003    # 時間 (Word series)
+      
+      # 唯讀監控資料 (R2014~)
+      bucket_data_start: 40015
+      
+      # 分規 2-7 的唯讀最小值 (R2042~, 40043)
+      bucket_ro_min_start: 40043
+      
+      # 分規設定寫入區 (R2100~, 40101)
+      # 包含 Bucket 1 (Min, Max, Target) + Bucket 2-7 (Max, Target)
+      bucket_settings_start: 40101
+
+      fish_code: 40131          # 魚種代碼
 
 # 資料庫設定 (解決 KeyError: 'database')
 database:

@@ -63,6 +63,7 @@ class RealGateway(BaseGateway):
             max_retries=3,
             retry_delay=2.0
         )
+        self.history_interval = config.get('history_interval', 5.0)
         
         # [修改] 將設定檔中的地址對應表傳給 Parser
         self.parser = TagParser(config['plc']['registers']['map'])
@@ -111,15 +112,11 @@ class RealGateway(BaseGateway):
                 self.update_tag(key, val)
                 
             # 定期寫入歷史 (每 5 秒)
-            if time.time() - self.last_update > 5.0:
-                # 這裡需要組合完整的 data 字典才能寫入 DB
-                # 簡單起見，我們將目前所有 tags 傳入
-                # 注意：這可能會因為某些 tag 尚未有值而缺欄位，Historian 需處理
+            if time.time() - self.last_update > self.history_interval:
                 if 'fish_code' in self.tags:
                      self.historian.log_data(self.tags)
                 self.last_update = time.time()
         else:
-            # Read failed, mark for potential reconnection
             logger.warning("Failed to read from PLC, connection may be lost")
 
 class SimGateway(BaseGateway):

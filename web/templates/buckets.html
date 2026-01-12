@@ -1,145 +1,72 @@
 {% extends "base.html" %}
 
+{% block title %}分規設定 - 產線秤重管理系統{% endblock %}
+
 {% block content %}
-<h2>分規資訊管理</h2>
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">分規數據設定</h2>
+        <p class="text-gray-500 text-sm">管理不同魚種的重量分選區間</p>
+    </div>
 
-<form id="bucketForm" class="bucket-form">
-  <table class="bucket-table">
-    <thead>
-      <tr>
-        <th>分規</th>
-        <th>最小值 (g)</th>
-        <th>最大值 (g)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for i in range(1, 8) %}
-      <tr>
-        <td>分規 {{ i }}</td>
-        <td>
-          <input type="number" step="1"
-                 id="bucket{{ i }}_min"
-                 data-tag="bucket{{ i }}_min">
-        </td>
-        <td>
-          <input type="number" step="1"
-                 id="bucket{{ i }}_max"
-                 data-tag="bucket{{ i }}_max">
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <!-- Control Panel -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="flex flex-col md:flex-row gap-4 items-end">
+            <!-- Fish Selector -->
+            <div class="w-full md:w-1/3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">選擇魚種 (Target Product)</label>
+                <div class="relative">
+                    <select id="fish-select" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border">
+                        <option value="" disabled selected>載入中...</option>
+                    </select>
+                </div>
+            </div>
 
-  <div class="form-actions">
-    <button type="button" class="btn secondary" onclick="reloadValues()">回復</button>
-    <button type="submit" class="btn primary">儲存</button>
-  </div>
-</form>
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3 w-full md:w-2/3 justify-end">
+                <button onclick="loadFromPLC()" class="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-md transition flex items-center border border-gray-300">
+                    <i class="fa-solid fa-download mr-2"></i> 讀取設備現值
+                </button>
+                <button onclick="saveToDB()" class="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center shadow-sm">
+                    <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存分規數據 (DB)
+                </button>
+                <button onclick="writeToPLC()" class="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-md transition flex items-center shadow-sm">
+                    <i class="fa-solid fa-upload mr-2"></i> 寫入設備 (PLC)
+                </button>
+            </div>
+        </div>
+        <div class="mt-2 text-xs text-gray-500 flex justify-between">
+            <span id="status-msg">請選擇魚種以開始設定。</span>
+            <span><i class="fa-solid fa-circle-info mr-1"></i> "寫入設備" 將覆蓋 PLC 當前設定</span>
+        </div>
+    </div>
 
-<script>
-async function loadCurrentValues() {
-  const res = await fetch("/tags");
-  const tags = await res.json();
+    <!-- Bucket Settings Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[600px]">
+                <thead class="bg-gray-100 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider w-24">分規號碼</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最小值 (Min)</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最大值 (Max)</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">桶重設定 (Target)</th>
+                    </tr>
+                </thead>
+                <tbody id="bucket-table-body" class="divide-y divide-gray-100">
+                    <!-- Javascript will populate this -->
+                    <tr><td colspan="4" class="p-8 text-center text-gray-400">正在初始化...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="bg-gray-50 px-6 py-3 text-xs text-gray-400">
+            * 灰色輸入框為「唯讀」欄位，由 PLC 內部邏輯自動計算。
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-  document.querySelectorAll("input[data-tag]").forEach(input => {
-    const tag = input.dataset.tag;
-    if (tags[tag] !== undefined) {
-      input.value = tags[tag];
-    }
-  });
-}
-
-async function saveValues(e) {
-  e.preventDefault();
-
-  if (!confirm("確認寫入分規參數？")) {
-    return;
-  }
-
-  const inputs = document.querySelectorAll("input[data-tag]");
-  for (const input of inputs) {
-    const tag = input.dataset.tag;
-    const value = input.value;
-
-    if (value === "") continue;
-
-    const res = await fetch(`/write/${tag}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: Number(value) })
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      alert(`寫入 ${tag} 失敗：${err}`);
-      return;
-    }
-  }
-
-  alert("分規參數已成功寫入");
-}
-
-function reloadValues() {
-  loadCurrentValues();
-}
-
-document.getElementById("bucketForm").addEventListener("submit", saveValues);
-loadCurrentValues();
-</script>
-
-<style>
-.bucket-form {
-  margin-top: 16px;
-}
-
-.bucket-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-}
-
-.bucket-table th,
-.bucket-table td {
-  border: 1px solid #e5e7eb;
-  padding: 10px;
-  text-align: center;
-}
-
-.bucket-table th {
-  background: #f3f4f6;
-  font-size: 14px;
-}
-
-.bucket-table input {
-  width: 100%;
-  padding: 6px;
-  font-size: 14px;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.btn {
-  padding: 8px 16px;
-  font-size: 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  border: none;
-}
-
-.btn.primary {
-  background: #2563eb;
-  color: #fff;
-}
-
-.btn.secondary {
-  background: #e5e7eb;
-}
-</style>
-
+{% block scripts %}
+<script type="module" src="/static/js/buckets.js?v={{ v }}"></script>
 {% endblock %}

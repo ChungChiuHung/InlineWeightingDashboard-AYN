@@ -42,6 +42,7 @@ except Exception as e:
 ws_hub = WsHub()
 historian = Historian(config['database']['path'])
 
+# 根據設定決定啟動模擬模式或真實模式
 if config['system'].get('simulation_mode', False):
     logger.info("Starting in SIMULATION mode")
     gateway = SimGateway(config, historian, ws_hub)
@@ -51,13 +52,18 @@ else:
 
 write_controller = WriteController(gateway)
 
-# [關鍵] 定義資料模型 (用於驗證前端傳來的 JSON)
-# 如果缺少這段，API 會報錯 422 或 500
+# --- 資料模型定義 ---
+
 class FishTypeItem(BaseModel):
     code: str
     name: str
 
-# FastAPI 生命周期
+class RecipeItem(BaseModel):
+    fish_code: str
+    params: dict # Key-value pairs for bucket settings
+
+# --- FastAPI 生命周期管理 ---
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 啟動時初始化資料庫 (建立資料表)
@@ -78,10 +84,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# 掛載靜態檔案與樣板
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 templates = Jinja2Templates(directory="web/templates")
 
-# --- Page Routes ---
+# [關鍵] 更新全域版本號為 2.3.1
+# 這會透過 base.html 的 Import Map 強制所有 JS 檔案重新載入
+templates.env.globals['v'] = "2.3.1"
+
+# --- Page Routes (前端頁面路由) ---
+
 @app.get("/")
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -94,11 +106,19 @@ async def categories_page(request: Request):
 async def history_page(request: Request):
     return templates.TemplateResponse("history.html", {"request": request})
 
-# --- Data API Routes ---
+@app.get("/ui/buckets")
+async def buckets_page(request: Request):
+    return templates.TemplateResponse("buckets.html", {"request": request})
+
+@app.get("/ui/system")
+async def system_page(request: Request):
+    return templates.TemplateResponse("system.html", {"request": request})
+
+# --- Data API Routes (後端資料接口) ---
 
 @app.get("/api/status")
 async def get_system_status():
-    """Get current system data snapshot"""
+    """Get current system data snapshot (PLC values)"""
     return gateway.get_snapshot()
 
 @app.get("/status")
@@ -151,8 +171,7 @@ async def get_history(
     )
     return data
 
-# [關鍵] 魚種管理 API (CRUD)
-# 前端 categories.js 會呼叫這些接口
+# --- Fish Type Management APIs (CRUD) ---
 
 @app.get("/api/fish-types")
 async def get_fish_types():
@@ -161,20 +180,15 @@ async def get_fish_types():
 
 @app.post("/api/fish-types")
 async def save_fish_type(item: FishTypeItem):
-    """新增或更新魚種 with validation"""
-    # Input validation
+    """新增或更新魚種"""
     code = item.code.strip().upper()
     name = item.name.strip()
     
-    # Validate code format: must be exactly 4 alphanumeric characters
     if not code or len(code) != 4 or not code.isalnum():
         raise HTTPException(status_code=400, detail="Code must be exactly 4 alphanumeric characters")
-    
-    # Validate name
     if not name or len(name) > 100:
         raise HTTPException(status_code=400, detail="Name must be between 1 and 100 characters")
     
-    # 呼叫 historian 儲存
     success = historian.upsert_fish_type(code, name)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save to database")
@@ -182,9 +196,8 @@ async def save_fish_type(item: FishTypeItem):
 
 @app.delete("/api/fish-types/{code}")
 async def delete_fish_type(code: str):
-    """刪除魚種 with validation"""
-    # Validate code
-    if not code or len(code) > 10:  # Reasonable limit
+    """刪除魚種"""
+    if not code or len(code) > 10:
         raise HTTPException(status_code=400, detail="Invalid code")
     
     success = historian.delete_fish_type(code)
@@ -192,29 +205,50 @@ async def delete_fish_type(code: str):
         raise HTTPException(status_code=500, detail="Failed to delete")
     return {"status": "ok", "code": code}
 
-# 控制指令 API (寫入 PLC)
+# --- Control APIs (PLC Write) ---
+
 @app.post("/api/control/category")
 async def set_category(data: dict):
-    """Set fish type category on PLC with validation"""
+    """設定當前生產魚種 (寫入 PLC)"""
     code = data.get("code", "").strip().upper()
     
-    # Validate code
     if not code or len(code) != 4 or not code.isalnum():
         raise HTTPException(status_code=400, detail="Invalid code format")
     
     success = await write_controller.set_fish_type(code)
     return {"success": success, "code": code}
 
+# --- Recipe (Buckets) Management APIs ---
+
+@app.get("/api/recipes/{code}")
+async def get_recipe(code: str):
+    """取得指定魚種的配方設定 (從 DB)"""
+    return historian.get_recipe(code)
+
+@app.post("/api/recipes")
+async def save_recipe(item: RecipeItem):
+    """儲存配方到資料庫"""
+    if not historian.save_recipe(item.fish_code, item.params):
+        raise HTTPException(status_code=500, detail="Failed to save recipe")
+    return {"status": "ok"}
+
+@app.post("/api/control/write-recipe")
+async def write_recipe_plc(item: RecipeItem):
+    """將配方寫入 PLC"""
+    success = await write_controller.write_recipe(item.params)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to write to PLC")
+    return {"success": True}
+
 # --- WebSocket ---
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time data updates"""
     await ws_hub.connect(websocket)
     try:
         while True:
-            # Keep connection alive and handle client messages
             data = await websocket.receive_text()
-            # Echo back for connection keep-alive
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:

@@ -1,15 +1,20 @@
 /**
- * Dashboard Logic v2.0
+ * Dashboard Logic v2.2
  * Integrates WebSocket real-time updates and Chart.js
+ * Uses Centralized API Module
  */
 
+import { getFishTypes, getDailyStats } from './api.js';
+
 // --- 1. State & Config ---
-// In a real app, load this from /api/categories or enums.js
-const fishMapping = {
-    'F001': '白鯧 (White Pomfret)',
-    'F002': '鮭魚 (Salmon)',
-    'F003': '鮪魚 (Tuna)',
-    'F004': '吳郭魚 (Tilapia)'
+let fishMapping = {};
+
+const statusMap = {
+    'RUN': '運轉中',
+    'IDLE': '待機中',
+    'ALARM': '異常',
+    'STOP': '停止',
+    'UNKNOWN': '未知'
 };
 
 // Chart Instances
@@ -23,20 +28,43 @@ let timeLabels = Array(maxDataPoints).fill('');
 
 // --- 2. Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    loadFishMapping();
     initCharts();
     connectWebSocket();
-    fetchDailyStats(); // Load initial pie chart data
+    loadDailyStats(); // Renamed to avoid conflict
 });
 
+async function loadFishMapping() {
+    try {
+        const data = await getFishTypes();
+        
+        fishMapping = {};
+        data.forEach(item => {
+            fishMapping[item.code] = item.name;
+        });
+        
+        // Refresh display if data exists
+        const currentCodeEl = document.getElementById('val-fish-code');
+        if (currentCodeEl) {
+            const code = currentCodeEl.innerText;
+            if (code && code !== '----') {
+                const nameEl = document.getElementById('val-fish-name');
+                if (nameEl) nameEl.innerText = fishMapping[code] || code;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load fish mapping:", e);
+    }
+}
+
 function initCharts() {
-    // A. Weight Trend Line Chart
     const ctxWeight = document.getElementById('weightChart').getContext('2d');
     weightChart = new Chart(ctxWeight, {
         type: 'line',
         data: {
             labels: timeLabels,
             datasets: [{
-                label: 'Weight (kg)',
+                label: '重量 (kg)',
                 data: weightData,
                 borderColor: '#3b82f6',
                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -49,7 +77,7 @@ function initCharts() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            animation: false, // Disable animation for performance on high-rate updates
+            animation: false,
             scales: {
                 y: { beginAtZero: true, max: 5 },
                 x: { display: false }
@@ -58,7 +86,6 @@ function initCharts() {
         }
     });
 
-    // B. Production Pie Chart (Initial Empty)
     const ctxProd = document.getElementById('productionChart').getContext('2d');
     productionChart = new Chart(ctxProd, {
         type: 'doughnut',
@@ -92,34 +119,29 @@ function connectWebSocket() {
     ws.onopen = () => {
         elIndicator.classList.remove('bg-red-500');
         elIndicator.classList.add('bg-green-500');
-        elText.innerText = 'ONLINE';
-        console.log("WebSocket Connected");
+        elText.innerText = '連線中';
     };
 
     ws.onclose = () => {
         elIndicator.classList.remove('bg-green-500');
         elIndicator.classList.add('bg-red-500');
-        elText.innerText = 'OFFLINE';
-        setTimeout(connectWebSocket, 3000); // Reconnect logic
+        elText.innerText = '離線';
+        setTimeout(connectWebSocket, 3000);
     };
 
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             updateDashboard(data);
-        } catch (e) {
-            console.error("Parse Error", e);
-        }
+        } catch (e) { console.error(e); }
     };
 }
 
 // --- 4. API Calls ---
-async function fetchDailyStats() {
+async function loadDailyStats() {
     try {
-        const response = await fetch('/api/history/stats');
-        const result = await response.json();
+        const result = await getDailyStats();
         
-        // Update Chart
         productionChart.data.labels = result.labels;
         productionChart.data.datasets[0].data = result.data;
         productionChart.update();
@@ -130,30 +152,23 @@ async function fetchDailyStats() {
 
 // --- 5. UI Updates ---
 function updateDashboard(data) {
-    // 5.1 Status Coloring
     if (data.status) {
         const statusCard = document.getElementById('card-status');
         const statusText = document.getElementById('val-status');
         
         statusCard.classList.remove('status-run', 'status-idle', 'status-alarm', 'bg-white', 'border-l-8');
         
-        if (data.status === 'RUN') {
-            statusCard.classList.add('status-run');
-        } else if (data.status === 'IDLE') {
-            statusCard.classList.add('status-idle');
-        } else if (data.status === 'ALARM') {
-            statusCard.classList.add('status-alarm');
-        } else {
-            statusCard.classList.add('bg-white', 'border-l-8');
-        }
-        statusText.innerText = data.status;
+        if (data.status === 'RUN') statusCard.classList.add('status-run');
+        else if (data.status === 'IDLE') statusCard.classList.add('status-idle');
+        else if (data.status === 'ALARM') statusCard.classList.add('status-alarm');
+        else statusCard.classList.add('bg-white', 'border-l-8');
+        
+        statusText.innerText = statusMap[data.status] || data.status;
     }
 
-    // 5.2 Numeric Values
     if (data.weight !== undefined) {
         document.getElementById('val-weight').innerText = parseFloat(data.weight).toFixed(2);
         
-        // Update Chart Buffer
         weightData.push(data.weight);
         weightData.shift();
         weightChart.update();
