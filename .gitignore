@@ -3,12 +3,18 @@ __pycache__/
 *.py[cod]
 *$py.class
 venv/
+venv_*/
 .env
 
 # Database (通常不建議將運作中的 DB 上傳，除非是空的結構檔)
 *.db
 *.sqlite3
 /data/*.db
+/data/
+
+# Logs
+logs/
+*.log
 
 # OS specific
 .DS_Store

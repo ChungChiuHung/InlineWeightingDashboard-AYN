@@ -43,6 +43,7 @@ class BaseGateway:
         old_value = self.tags.get(name)
         if value != old_value:
             self.tags[name] = value
+            self.last_update = time.time()  # Update last_update timestamp
             asyncio.create_task(self.ws_hub.broadcast({name: value}))
             
             # 簡單的歷史記錄觸發邏輯：當重量大於 0 且穩定時 (這裡簡化為每次變化都記)
@@ -56,7 +57,12 @@ class BaseGateway:
 class RealGateway(BaseGateway):
     def __init__(self, config: dict, historian: Historian, ws_hub: WsHub):
         super().__init__(config, historian, ws_hub)
-        self.client = ModbusClient(config['plc']['host'], config['plc']['port'])
+        self.client = ModbusClient(
+            config['plc']['host'], 
+            config['plc']['port'],
+            max_retries=3,
+            retry_delay=2.0
+        )
         
         # [修改] 將設定檔中的地址對應表傳給 Parser
         self.parser = TagParser(config['plc']['registers']['map'])
@@ -64,11 +70,12 @@ class RealGateway(BaseGateway):
         # [修改] 從設定檔讀取讀取範圍
         self.start_addr = config['plc']['registers']['read_start']
         self.read_count = config['plc']['registers']['read_count']
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 10
 
     async def start(self):
         if not await self.client.connect():
-            logger.error("Failed to connect to PLC.")
-            return
+            logger.error("Failed to connect to PLC. Will retry in polling loop.")
         await super().start()
 
     async def stop(self):
@@ -76,10 +83,27 @@ class RealGateway(BaseGateway):
         self.client.close()
 
     async def tick(self):
+        # Check if we need to reconnect
+        if not self.client.connected and self.reconnect_attempts < self.max_reconnect_attempts:
+            logger.info(f"Attempting to reconnect to PLC (attempt {self.reconnect_attempts + 1})")
+            if await self.client.connect():
+                logger.info("Successfully reconnected to PLC")
+                self.reconnect_attempts = 0
+            else:
+                self.reconnect_attempts += 1
+                return
+        
+        if not self.client.connected:
+            logger.error("Cannot read from PLC: not connected")
+            return
+            
         # [修改] 使用設定檔中的地址與長度
         regs = await self.client.read_holding_registers(self.start_addr, self.read_count)
         
         if regs:
+            # Reset reconnect attempts on successful read
+            self.reconnect_attempts = 0
+            
             # 解析數據
             parsed_data = self.parser.parse_block(regs, self.start_addr)
             
@@ -94,6 +118,9 @@ class RealGateway(BaseGateway):
                 if 'fish_code' in self.tags:
                      self.historian.log_data(self.tags)
                 self.last_update = time.time()
+        else:
+            # Read failed, mark for potential reconnection
+            logger.warning("Failed to read from PLC, connection may be lost")
 
 class SimGateway(BaseGateway):
     async def tick(self):
