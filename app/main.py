@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, Request, WebSocketDisconnect, HTTPException
 from fastapi.templating import Jinja2Templates
@@ -109,7 +110,6 @@ async def health_check():
             raise HTTPException(status_code=503, detail="Gateway not running")
         
         # Check if we have recent data (updated in last 30 seconds)
-        import time
         if hasattr(gateway, 'last_update'):
             time_since_update = time.time() - gateway.last_update
             if time_since_update > 30:
@@ -124,7 +124,7 @@ async def health_check():
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Health check failed: {e}")
+        logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="System unhealthy")
 
 @app.get("/api/history/stats")
