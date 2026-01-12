@@ -1,10 +1,15 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, Request, WebSocketDisconnect, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import yaml
+
+# Ensure logs directory exists
+os.makedirs('logs', exist_ok=True)
 
 # Configure logging
 logging.basicConfig(
@@ -12,7 +17,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('logs/app.log') if os.path.exists('logs') or os.makedirs('logs', exist_ok=True) else logging.StreamHandler()
+        logging.FileHandler('logs/app.log')
     ]
 )
 logger = logging.getLogger(__name__)
@@ -24,9 +29,6 @@ from .ws_hub import WsHub
 from .write_controller import WriteController
 
 # 載入設定
-import yaml
-import os
-
 try:
     with open("config/config.yaml", "r") as f:
         config = yaml.safe_load(f)

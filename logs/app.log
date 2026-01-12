@@ -1,0 +1,20 @@
+2026-01-12 13:50:17,448 - app.main - INFO - Configuration loaded successfully
+2026-01-12 13:50:17,448 - app.main - INFO - Starting in SIMULATION mode
+2026-01-12 13:50:17,483 - app.main - INFO - Initializing database...
+2026-01-12 13:50:17,487 - historian - INFO - Database initialized successfully at data/history.db
+2026-01-12 13:50:17,487 - app.main - INFO - Starting gateway...
+2026-01-12 13:50:17,487 - app.main - INFO - Application startup complete
+2026-01-12 13:50:17,487 - gateway - INFO - Gateway started.
+2026-01-12 13:50:27,214 - app.main - INFO - Shutting down gateway...
+2026-01-12 13:50:27,214 - gateway - INFO - Gateway stopped.
+2026-01-12 13:50:27,214 - app.main - INFO - Application shutdown complete
+2026-01-12 13:50:36,930 - app.main - INFO - Configuration loaded successfully
+2026-01-12 13:50:36,930 - app.main - INFO - Starting in SIMULATION mode
+2026-01-12 13:50:36,969 - app.main - INFO - Initializing database...
+2026-01-12 13:50:36,970 - historian - INFO - Database initialized successfully at data/history.db
+2026-01-12 13:50:36,970 - app.main - INFO - Starting gateway...
+2026-01-12 13:50:36,970 - app.main - INFO - Application startup complete
+2026-01-12 13:50:36,970 - gateway - INFO - Gateway started.
+2026-01-12 13:51:29,883 - app.main - INFO - Shutting down gateway...
+2026-01-12 13:51:29,883 - gateway - INFO - Gateway stopped.
+2026-01-12 13:51:29,883 - app.main - INFO - Application shutdown complete

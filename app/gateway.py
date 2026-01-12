@@ -43,6 +43,7 @@ class BaseGateway:
         old_value = self.tags.get(name)
         if value != old_value:
             self.tags[name] = value
+            self.last_update = time.time()  # Update last_update timestamp
             asyncio.create_task(self.ws_hub.broadcast({name: value}))
             
             # 簡單的歷史記錄觸發邏輯：當重量大於 0 且穩定時 (這裡簡化為每次變化都記)
