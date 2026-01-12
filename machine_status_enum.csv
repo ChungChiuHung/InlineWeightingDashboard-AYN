@@ -1,6 +1,0 @@
-Value,Code,Chinese,English,UI_Level
-0,UNKNOWN,未定義,Unknown,Gray
-1,RUN,運轉中,Running,Green
-2,IDLE,待機,Idle,Yellow
-3,ALARM,異常,Alarm,Red
-4,STOP,停止,Stopped,Gray

@@ -1,295 +1,32 @@
-# ===============================
-# Global
-# ===============================
-mode: simulation   # simulation | real
+# 系統設定
+system:
+  name: "PLC Gateway"
+  version: "2.1.0"
+  # 開發階段建議設為 true (使用模擬數據)，確認 UI 正常後再改 false (連接真實 PLC)
+  simulation_mode: true
 
+# PLC 連線設定
 plc:
-  host: 192.168.1.10
+  host: "192.168.1.5"  # 請修改為實際 PLC IP
   port: 502
-  unit_id: 1
-  timeout: 1.0
+  poll_interval: 0.1   # 輪詢頻率 (秒)
+  
+  # [關鍵] 暫存器地址設定
+  # Gateway (讀取範圍), Parser (解析邏輯), WriteController (寫入地址) 都依賴此設定
+  registers:
+    read_start: 40131  # 批量讀取的起始地址
+    read_count: 10     # 一次讀取的暫存器數量 (涵蓋下方所有訊號)
+    
+    # 訊號地址對應表 (Map)
+    map:
+      fish_code: 40131  # 魚種代碼 (String, 2 words)
+      weight: 40133     # 重量 (Float, 2 words)
+      status: 40135     # 狀態 (Int, 1 word)
 
-# ===============================
-# Polling Groups (Block Read)
-# ===============================
-groups:
-  - name: realtime_ro
-    fc: holding
-    start: 0          # 40001
-    count: 84         # 40001 ~ 40084
-    interval_ms: 100
+# 資料庫設定 (解決 KeyError: 'database')
+database:
+  path: "data/history.db"
 
-# ===============================
-# RO Tags (Readable)
-# ===============================
-tags:
-  # --- 即時秤重 ---
-  - name: weight_now
-    group: realtime_ro
-    offset: 0         # 40001
-    type: dword
-
-  # --- 開始時間 ---
-  - name: start_year
-    group: realtime_ro
-    offset: 2         # 40003
-    type: word
-  - name: start_month
-    group: realtime_ro
-    offset: 3
-    type: word
-  - name: start_day
-    group: realtime_ro
-    offset: 4
-    type: word
-  - name: start_hour
-    group: realtime_ro
-    offset: 5
-    type: word
-  - name: start_min
-    group: realtime_ro
-    offset: 6
-    type: word
-  - name: start_sec
-    group: realtime_ro
-    offset: 7
-    type: word
-
-  # --- 結束時間 ---
-  - name: end_year
-    group: realtime_ro
-    offset: 8         # 40009
-    type: word
-  - name: end_month
-    group: realtime_ro
-    offset: 9
-    type: word
-  - name: end_day
-    group: realtime_ro
-    offset: 10
-    type: word
-  - name: end_hour
-    group: realtime_ro
-    offset: 11
-    type: word
-  - name: end_min
-    group: realtime_ro
-    offset: 12
-    type: word
-  - name: end_sec
-    group: realtime_ro
-    offset: 13
-    type: word
-
-  # --- 分規 1 ~ 7（總重 / 隻數） ---
-  - name: bucket1_total_weight
-    group: realtime_ro
-    offset: 14        # 40015
-    type: dword
-  - name: bucket1_count
-    group: realtime_ro
-    offset: 16        # 40017
-    type: dword
-
-  - name: bucket2_total_weight
-    group: realtime_ro
-    offset: 18        # 40019
-    type: dword
-  - name: bucket2_count
-    group: realtime_ro
-    offset: 20        # 40021
-    type: dword
-
-  - name: bucket3_total_weight
-    group: realtime_ro
-    offset: 22        # 40023
-    type: dword
-  - name: bucket3_count
-    group: realtime_ro
-    offset: 24        # 40025
-    type: dword
-
-  - name: bucket4_total_weight
-    group: realtime_ro
-    offset: 26        # 40027
-    type: dword
-  - name: bucket4_count
-    group: realtime_ro
-    offset: 28        # 40029
-    type: dword
-
-  - name: bucket5_total_weight
-    group: realtime_ro
-    offset: 30        # 40031
-    type: dword
-  - name: bucket5_count
-    group: realtime_ro
-    offset: 32        # 40033
-    type: dword
-
-  - name: bucket6_total_weight
-    group: realtime_ro
-    offset: 34        # 40035
-    type: dword
-  - name: bucket6_count
-    group: realtime_ro
-    offset: 36        # 40037
-    type: dword
-
-  - name: bucket7_total_weight
-    group: realtime_ro
-    offset: 38        # 40039
-    type: dword
-  - name: bucket7_count
-    group: realtime_ro
-    offset: 40        # 40041
-    type: dword
-
-  # --- NG / 總計 ---
-  - name: ng_total_weight
-    group: realtime_ro
-    offset: 42        # 40043
-    type: dword
-  - name: ng_count
-    group: realtime_ro
-    offset: 44        # 40045
-    type: dword
-
-  - name: total_weight
-    group: realtime_ro
-    offset: 46        # 40047
-    type: dword
-  - name: total_count
-    group: realtime_ro
-    offset: 48        # 40049
-    type: dword
-
-  # --- 時間 / 能耗 ---
-  - name: runtime_sec
-    group: realtime_ro
-    offset: 50        # 40051
-    type: dword
-  - name: idle_time_sec
-    group: realtime_ro
-    offset: 52        # 40053
-    type: dword
-  - name: alarm_time_sec
-    group: realtime_ro
-    offset: 54        # 40055
-    type: dword
-  - name: total_energy_0_1kwh
-    group: realtime_ro
-    offset: 56        # 40057
-    type: dword
-
-  # --- 機台 / OEE ---
-  - name: machine_status
-    group: realtime_ro
-    offset: 58        # 40059
-    type: word
-  - name: machine_error_code
-    group: realtime_ro
-    offset: 59        # 40060
-    type: word
-  - name: machine_alarm_code
-    group: realtime_ro
-    offset: 60        # 40061
-    type: word
-
-  - name: oee_availability
-    group: realtime_ro
-    offset: 61        # 40062
-    type: word
-  - name: oee_performance
-    group: realtime_ro
-    offset: 62        # 40063
-    type: word
-  - name: oee_quality
-    group: realtime_ro
-    offset: 63        # 40064
-    type: word
-  - name: oee_total
-    group: realtime_ro
-    offset: 64        # 40065
-    type: word
-
-  # --- 產線資訊 ---
-  - name: machine_speed_ppm
-    group: realtime_ro
-    offset: 65        # 40066
-    type: word
-  - name: capacity_estimate_hour
-    group: realtime_ro
-    offset: 66        # 40067
-    type: word
-  - name: order_progress_percent
-    group: realtime_ro
-    offset: 67        # 40068
-    type: word
-  - name: eta_min
-    group: realtime_ro
-    offset: 68        # 40069
-    type: word
-  - name: avg_sort_time_ms
-    group: realtime_ro
-    offset: 69        # 40070
-    type: word
-
-  # --- 分規單重 ---
-  - name: bucket1_unit_weight
-    group: realtime_ro
-    offset: 70        # 40071
-    type: dword
-  - name: bucket2_unit_weight
-    group: realtime_ro
-    offset: 72        # 40073
-    type: dword
-  - name: bucket3_unit_weight
-    group: realtime_ro
-    offset: 74        # 40075
-    type: dword
-  - name: bucket4_unit_weight
-    group: realtime_ro
-    offset: 76        # 40077
-    type: dword
-  - name: bucket5_unit_weight
-    group: realtime_ro
-    offset: 78        # 40079
-    type: dword
-  - name: bucket6_unit_weight
-    group: realtime_ro
-    offset: 80        # 40081
-    type: dword
-  - name: bucket7_unit_weight
-    group: realtime_ro
-    offset: 82        # 40083
-    type: dword
-
-# ===============================
-# Historian (Whitelist)
-# ===============================
-historian:
-  whitelist:
-    - weight_now
-    - total_weight
-    - total_count
-    - machine_status
-    - bucket1_count
-    - bucket2_count
-    - bucket3_count
-    - bucket4_count
-    - bucket5_count
-    - bucket6_count
-    - bucket7_count
-
-# ===============================
-# WO (Writable)
-# ===============================
-wo:
-  rate_limit_ms: 500
-  tags:
-    - name: category_a_code
-      fc: holding
-      address: 130       # 40131
-      type: string
-      length: 2          # 40131~40132
+# Log 設定
+logging:
+  level: "INFO"

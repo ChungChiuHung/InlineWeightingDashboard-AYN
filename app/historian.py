@@ -1,72 +1,56 @@
 import sqlite3
-import time
-from collections import defaultdict
+import logging
+import os
+from datetime import datetime
+
+logger = logging.getLogger("historian")
 
 class Historian:
-    def __init__(self, db_path, flush_interval=1.0, tag_whitelist=None, status=None):
+    def __init__(self, db_path: str):
         self.db_path = db_path
-        self.flush_interval = flush_interval
-        self.tag_whitelist = set(tag_whitelist or [])
-        self.buffer = defaultdict(list)
-        self.last_value = {}
-        self.last_flush = time.time()
-        self._init_db()
-        self.status = status
+        # 確保目錄存在
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
-        cur = conn.cursor()
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS history (
-            ts INTEGER,
-            tag TEXT,
-            avg REAL,
-            min REAL,
-            max REAL,
-            last REAL
-        )
-        """)
-        cur.execute("""
-        CREATE INDEX IF NOT EXISTS idx_history_tag_ts
-        ON history(tag, ts)
-        """)
-        conn.commit()
-        conn.close()
-
-    def push(self, tag, value, ts):
-        if self.tag_whitelist and tag not in self.tag_whitelist:
-            return
-
-        self.buffer[tag].append(value)
-        self.last_value[tag] = value
-
-        now = time.time()
-        if now - self.last_flush >= self.flush_interval:
-            self.flush(int(now))
-
-    def flush(self, ts):
-        if not self.buffer:
-            return
-
-        conn = sqlite3.connect(self.db_path)
-        cur = conn.cursor()
-
-        for tag, values in self.buffer.items():
-            cur.execute(
-                "INSERT INTO history (ts, tag, avg, min, max, last) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    ts,
-                    tag,
-                    sum(values) / len(values),
-                    min(values),
-                    max(values),
-                    self.last_value.get(tag)
+    def init_db(self):
+        """初始化資料庫表結構"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            # 建立歷史記錄表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    fish_code TEXT,
+                    weight REAL,
+                    status TEXT
                 )
-            )
+            ''')
+            conn.commit()
+            conn.close()
+            logger.info(f"Database initialized at {self.db_path}")
+        except Exception as e:
+            logger.error(f"DB Init failed: {e}")
 
-        conn.commit()
-        conn.close()
-        self.buffer.clear()
-        self.last_flush = time.time()
-        if self.status:
-            self.status.mark_flush()
+    def log_data(self, data: dict):
+        """寫入一筆資料"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO history (fish_code, weight, status)
+                VALUES (?, ?, ?)
+            ''', (data.get('fish_code'), data.get('weight'), data.get('status')))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Log data failed: {e}")
+
+    def get_daily_stats(self):
+        """取得今日產量統計 (供圓餅圖使用)"""
+        # 範例實作：回傳假資料或查詢 DB
+        # 在原型階段，先回傳固定格式讓前端能跑
+        return {
+            "labels": ["白鯧", "鮭魚", "鮪魚", "吳郭魚"],
+            "data": [12, 5, 8, 15]
+        }
