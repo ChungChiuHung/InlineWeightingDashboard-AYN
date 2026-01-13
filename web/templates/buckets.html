@@ -7,38 +7,45 @@
     <!-- Header -->
     <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800">分規數據設定</h2>
-        <p class="text-gray-500 text-sm">管理不同魚種的重量分選區間</p>
+        <p class="text-gray-500 text-sm">設定各魚種對應的重量分選參數 (Recipe Management)</p>
     </div>
 
     <!-- Control Panel -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div class="flex flex-col md:flex-row gap-4 items-end">
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-indigo-500">
+        <div class="flex flex-col md:flex-row gap-6 items-end">
             <!-- Fish Selector -->
             <div class="w-full md:w-1/3">
-                <label class="block text-sm font-medium text-gray-700 mb-1">選擇魚種 (Target Product)</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2">
+                    <i class="fa-solid fa-fish mr-1"></i> 選擇目標魚種
+                </label>
                 <div class="relative">
-                    <select id="fish-select" class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border">
+                    <select id="fish-select" class="block w-full pl-3 pr-10 py-2.5 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border shadow-sm">
                         <option value="" disabled selected>載入中...</option>
                     </select>
                 </div>
+                <p class="text-xs text-gray-400 mt-1">選擇魚種後，將自動載入資料庫中的設定。</p>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex flex-wrap gap-3 w-full md:w-2/3 justify-end">
-                <button onclick="loadFromPLC()" class="bg-gray-100 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-md transition flex items-center border border-gray-300">
-                    <i class="fa-solid fa-download mr-2"></i> 讀取設備現值
+                <button onclick="loadFromPLC()" class="bg-white text-gray-700 hover:bg-gray-50 px-4 py-2.5 rounded-md transition flex items-center border border-gray-300 shadow-sm">
+                    <i class="fa-solid fa-download mr-2 text-gray-500"></i> 讀取設備現值
                 </button>
-                <button onclick="saveToDB()" class="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md transition flex items-center shadow-sm">
-                    <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存分規數據 (DB)
+                <button onclick="saveToDB()" class="bg-green-600 text-white hover:bg-green-700 px-4 py-2.5 rounded-md transition flex items-center shadow-sm">
+                    <i class="fa-solid fa-floppy-disk mr-2"></i> 儲存到資料庫
                 </button>
-                <button onclick="writeToPLC()" class="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-md transition flex items-center shadow-sm">
+                <button onclick="writeToPLC()" class="bg-red-600 text-white hover:bg-red-700 px-4 py-2.5 rounded-md transition flex items-center shadow-sm">
                     <i class="fa-solid fa-upload mr-2"></i> 寫入設備 (PLC)
                 </button>
             </div>
         </div>
-        <div class="mt-2 text-xs text-gray-500 flex justify-between">
-            <span id="status-msg">請選擇魚種以開始設定。</span>
-            <span><i class="fa-solid fa-circle-info mr-1"></i> "寫入設備" 將覆蓋 PLC 當前設定</span>
+        
+        <!-- Status Message Bar -->
+        <div class="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+            <span id="status-msg" class="text-sm text-gray-500 font-medium">請選擇魚種以開始設定。</span>
+            <span class="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">
+                <i class="fa-solid fa-circle-info mr-1"></i> 修改後請務必儲存或寫入
+            </span>
         </div>
     </div>
 
@@ -46,22 +53,24 @@
     <div class="bg-white rounded-lg shadow-md overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse min-w-[600px]">
-                <thead class="bg-gray-100 border-b border-gray-200">
+                <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
-                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider w-24">分規號碼</th>
-                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最小值 (Min)</th>
-                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最大值 (Max)</th>
-                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">桶重設定 (Target)</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider w-32">分規號碼</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最小值 (Min) <span class="text-xs font-normal text-gray-400 normal-case ml-1">(g)</span></th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">最大值 (Max) <span class="text-xs font-normal text-gray-400 normal-case ml-1">(g)</span></th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-600 uppercase tracking-wider">桶重設定 (Target) <span class="text-xs font-normal text-gray-400 normal-case ml-1">(g)</span></th>
                     </tr>
                 </thead>
                 <tbody id="bucket-table-body" class="divide-y divide-gray-100">
                     <!-- Javascript will populate this -->
-                    <tr><td colspan="4" class="p-8 text-center text-gray-400">正在初始化...</td></tr>
+                    <tr><td colspan="4" class="p-12 text-center text-gray-400">
+                        <i class="fa-solid fa-arrow-up mr-2"></i>請先於上方選擇魚種
+                    </td></tr>
                 </tbody>
             </table>
         </div>
-        <div class="bg-gray-50 px-6 py-3 text-xs text-gray-400">
-            * 灰色輸入框為「唯讀」欄位，由 PLC 內部邏輯自動計算。
+        <div class="bg-gray-50 px-6 py-3 text-xs text-gray-400 border-t border-gray-100 flex items-center">
+            <i class="fa-solid fa-lock mr-2"></i> 灰色輸入框為「唯讀」欄位，由 PLC 內部邏輯自動計算。所有單位均為公克 (g)。
         </div>
     </div>
 </div>

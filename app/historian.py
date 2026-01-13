@@ -4,6 +4,7 @@ import os
 import json
 from contextlib import contextmanager
 from typing import Optional, Dict, List
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("historian")
 
@@ -55,8 +56,7 @@ class Historian:
                     )
                 ''')
 
-                # [新增] 3. 分規配方表 (Recipe)
-                # 儲存每個魚種對應的分規參數 (JSON 格式儲存以保留彈性)
+                # 3. 分規配方表
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS fish_recipes (
                         fish_code TEXT PRIMARY KEY,
@@ -70,14 +70,20 @@ class Historian:
             logger.error(f"DB Init failed: {e}")
             raise
 
-    # ... (原有 log_data, get_history_data 等維持不變) ...
-
     def log_data(self, data: dict):
+        """寫入一筆歷史資料 (Time, FishCode, Weight, Status)"""
         try:
+            # [修正] 使用 Python 的 datetime.now() 取得系統當前時間 (Local Time)
+            # 這能避免 SQLite DEFAULT CURRENT_TIMESTAMP 使用 UTC 導致的時間差
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
             with self.get_connection() as conn:
-                conn.execute('INSERT INTO history (fish_code, weight, status) VALUES (?, ?, ?)',
-                           (data.get('fish_code'), data.get('weight'), data.get('status')))
-        except Exception as e: logger.error(f"Log data failed: {e}")
+                # 明確寫入 timestamp 欄位
+                conn.execute('INSERT INTO history (timestamp, fish_code, weight, status) VALUES (?, ?, ?, ?)',
+                           (current_time, data.get('fish_code'), data.get('weight'), data.get('status')))
+            # logger.debug("Data logged successfully to DB")
+        except Exception as e: 
+            logger.error(f"Log data failed: {e}")
 
     def get_history_data(self, start_time=None, end_time=None, fish_code=None, limit=1000):
         try:
@@ -90,11 +96,42 @@ class Historian:
                 q += ' ORDER BY timestamp DESC LIMIT ?'; p.append(limit)
                 cursor = conn.execute(q, p)
                 return [dict(r) for r in cursor.fetchall()]
-        except Exception: return []
+        except Exception as e:
+            logger.error(f"Get history failed: {e}")
+            return []
 
     def get_daily_stats(self):
-        # Mock data for dashboard
-        return {"labels": ["白鯧", "鮭魚", "鮪魚", "吳郭魚"], "data": [12, 5, 8, 15]}
+        """
+        統計「今日」各魚種的生產數量
+        """
+        try:
+            today_start = datetime.now().strftime('%Y-%m-%d 00:00:00')
+            
+            with self.get_connection() as conn:
+                sql = '''
+                    SELECT 
+                        h.fish_code,
+                        COALESCE(f.name, h.fish_code) as name,
+                        COUNT(*) as count
+                    FROM history h
+                    LEFT JOIN fish_type f ON h.fish_code = f.code
+                    WHERE h.timestamp >= ?
+                    GROUP BY h.fish_code
+                '''
+                rows = conn.execute(sql, (today_start,)).fetchall()
+                
+                labels = []
+                data = []
+                
+                for r in rows:
+                    labels.append(r['name'])
+                    data.append(r['count'])
+                
+                return {"labels": labels, "data": data}
+                
+        except Exception as e:
+            logger.error(f"Get stats failed: {e}")
+            return {"labels": [], "data": []}
 
     def get_all_fish_types(self) -> List[Dict]:
         try:
@@ -117,9 +154,7 @@ class Historian:
                 return True
         except Exception: return False
 
-    # [新增] 配方 CRUD
     def save_recipe(self, fish_code: str, params: dict) -> bool:
-        """儲存分規設定到資料庫"""
         try:
             json_str = json.dumps(params)
             with self.get_connection() as conn:
@@ -131,7 +166,6 @@ class Historian:
             return False
 
     def get_recipe(self, fish_code: str) -> Dict:
-        """讀取分規設定"""
         try:
             with self.get_connection() as conn:
                 row = conn.execute('SELECT params FROM fish_recipes WHERE fish_code = ?', (fish_code,)).fetchone()

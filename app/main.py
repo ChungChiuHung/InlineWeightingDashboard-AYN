@@ -2,8 +2,6 @@ import asyncio
 import logging
 import os
 import time
-import random
-from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, Request, WebSocketDisconnect, HTTPException
 from fastapi.templating import Jinja2Templates
@@ -11,10 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import yaml
 
-# Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
-
-# Configure logging
+# ... (Logging設定) ...
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -25,8 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 引入核心模組
-from .gateway import RealGateway, SimGateway
+from .gateway import RealGateway
 from .historian import Historian
 from .ws_hub import WsHub
 from .write_controller import WriteController
@@ -44,18 +38,12 @@ except Exception as e:
 ws_hub = WsHub()
 historian = Historian(config['database']['path'])
 
-# 根據設定決定啟動模擬模式或真實模式
-if config['system'].get('simulation_mode', False):
-    logger.info("Starting in SIMULATION mode")
-    gateway = SimGateway(config, historian, ws_hub)
-else:
-    logger.info("Starting in REAL mode - connecting to PLC")
-    gateway = RealGateway(config, historian, ws_hub)
-
+# 強制使用真實模式 (Real Mode)
+logger.info("Starting in REAL mode - connecting to PLC")
+gateway = RealGateway(config, historian, ws_hub)
 write_controller = WriteController(gateway)
 
 # --- 資料模型定義 ---
-
 class FishTypeItem(BaseModel):
     code: str
     name: str
@@ -64,11 +52,9 @@ class RecipeItem(BaseModel):
     fish_code: str
     params: dict 
 
-# --- FastAPI 生命周期管理 ---
-
+# --- FastAPI 生命周期 ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 啟動時初始化資料庫
     try:
         logger.info("Initializing database...")
         historian.init_db()
@@ -86,15 +72,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# 掛載靜態檔案與樣板
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 templates = Jinja2Templates(directory="web/templates")
-
-# 設定全域版本號 (Cache Busting)
-templates.env.globals['v'] = "2.4.0"
+templates.env.globals['v'] = "2.9.0"
 
 # --- Page Routes ---
-
 @app.get("/")
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -116,7 +98,6 @@ async def system_page(request: Request):
     return templates.TemplateResponse("system.html", {"request": request})
 
 # --- Data API Routes ---
-
 @app.get("/api/status")
 async def get_system_status():
     return gateway.get_snapshot()
@@ -135,7 +116,6 @@ async def health_check():
         return {
             "status": "healthy",
             "gateway_running": gateway.running,
-            "simulation_mode": config['system'].get('simulation_mode', False),
             "timestamp": time.time()
         }
     except HTTPException:
@@ -166,8 +146,7 @@ async def get_history(
     )
     return data
 
-# --- Fish Type Management APIs ---
-
+# --- Fish Type Management ---
 @app.get("/api/fish-types")
 async def get_fish_types():
     return historian.get_all_fish_types()
@@ -197,7 +176,7 @@ async def delete_fish_type(code: str):
         raise HTTPException(status_code=500, detail="Failed to delete")
     return {"status": "ok", "code": code}
 
-# --- Control APIs ---
+# --- Control APIs (寫入控制) ---
 
 @app.post("/api/control/category")
 async def set_category(data: dict):
@@ -206,9 +185,9 @@ async def set_category(data: dict):
         raise HTTPException(status_code=400, detail="Invalid code format")
     
     success = await write_controller.set_fish_type(code)
-    return {"success": success, "code": code}
-
-# --- Recipe Management APIs ---
+    if not success:
+        raise HTTPException(status_code=503, detail="Failed to write to PLC (Check connection)")
+    return {"success": True, "code": code}
 
 @app.get("/api/recipes/{code}")
 async def get_recipe(code: str):
@@ -222,57 +201,27 @@ async def save_recipe(item: RecipeItem):
 
 @app.post("/api/control/write-recipe")
 async def write_recipe_plc(item: RecipeItem):
+    if not item.params:
+        raise HTTPException(status_code=400, detail="No parameters to write")
+
     success = await write_controller.write_recipe(item.params)
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to write to PLC")
+        raise HTTPException(status_code=503, detail="Failed to write recipe to PLC (Partial or Total Failure)")
     return {"success": True}
 
-# --- Debug API (For Chart Testing) ---
-@app.post("/api/debug/seed")
-async def seed_data():
-    """生成隨機歷史資料供測試圖表使用"""
-    logger.info("Generating seed data...")
-    import sqlite3
-    try:
-        # 直接使用 historian 的 connection manager
-        with historian.get_connection() as conn:
-            # 產生過去 24 小時的數據
-            base_time = datetime.now()
-            records = []
-            
-            fish_opts = ['F001', 'F002', 'F003', 'F004']
-            
-            for i in range(100):
-                # 隨機時間 (過去 24 小時內)
-                delta_min = random.randint(0, 1440)
-                ts = (base_time - timedelta(minutes=delta_min)).strftime('%Y-%m-%d %H:%M:%S')
-                
-                # 隨機魚種
-                code = random.choice(fish_opts)
-                
-                # 隨機重量 (常態分佈模擬)
-                # 平均值 500g, 標準差 50g
-                weight = round(random.gauss(500, 50), 2)
-                if weight < 0: weight = 0
-                
-                status = 'RUN'
-                
-                records.append((ts, code, weight, status))
-            
-            conn.executemany(
-                'INSERT INTO history (timestamp, fish_code, weight, status) VALUES (?, ?, ?, ?)',
-                records
-            )
-        return {"status": "ok", "message": "Inserted 100 test records"}
-    except Exception as e:
-        logger.error(f"Seed failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 # --- WebSocket ---
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_hub.connect(websocket)
+    
+    # 建立連線時發送初始快照
+    try:
+        current_data = gateway.get_snapshot()
+        if current_data:
+            await websocket.send_json(current_data)
+    except Exception as e:
+        logger.error(f"Error sending initial snapshot: {e}")
+
     try:
         while True:
             data = await websocket.receive_text()

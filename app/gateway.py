@@ -17,6 +17,12 @@ class BaseGateway:
         self.running = False
         self.tags: Dict[str, Any] = {}
         self.last_update = 0.0
+        
+        # [修改] 用於追蹤重量變化，實現 Event-based Logging
+        # 初始化為 -1 確保第一次讀取 0 也會被視為變化（如果需要）
+        # 但這裡是為了偵測上升緣，所以初始 0 即可
+        self._prev_weight = 0.0
+        self._stable_weight_counter = 0
 
     async def start(self):
         self.running = True
@@ -40,16 +46,63 @@ class BaseGateway:
         raise NotImplementedError
 
     def update_tag(self, name: str, value: Any):
+        # 檢查數值是否真的改變
         old_value = self.tags.get(name)
+        
+        # 更新 Tags 字典
+        self.tags[name] = value
+        
+        # 只要有任何 Tag 更新，就視為 Gateway 活著
+        self.last_update = time.time()
+        
+        # 只有當數值改變時才廣播 (節省頻寬)
         if value != old_value:
-            self.tags[name] = value
-            self.last_update = time.time()  # Update last_update timestamp
             asyncio.create_task(self.ws_hub.broadcast({name: value}))
             
-            # 簡單的歷史記錄觸發邏輯：當重量大於 0 且穩定時 (這裡簡化為每次變化都記)
-            # 實際專案通常會加上 "重量穩定訊號" 判斷
-            if name == 'weight' and isinstance(value, (int, float)) and value > 0:
-                 pass # 可在此呼叫 historian.log_data
+        # [關鍵] 觸發 Event-based Logging
+        # 無論數值是否改變，只要是 'weight' 標籤被更新（代表一次 polling 完成），就檢查是否需要紀錄
+        # 注意：我們需要在這裡傳入 current value，因為 self.tags['weight'] 已經是新的了
+        if name == 'weight':
+            self._check_and_log_production(value)
+
+    def _check_and_log_production(self, current_weight):
+        """
+        核心紀錄邏輯：
+        當重量從「無負載 (<= Threshold)」變為「有效負載 (> Threshold)」時，視為一隻新魚通過。
+        """
+        try:
+            # 閾值：大於 10g 視為有魚
+            THRESHOLD = 10.0 
+            
+            # 確保 current_weight 是數值
+            if not isinstance(current_weight, (int, float)):
+                return
+
+            # 上升緣偵測 (Rising Edge): 
+            # 上一次 (self._prev_weight) 是空的/零，這一次 (current_weight) 有重量
+            if self._prev_weight <= THRESHOLD and current_weight > THRESHOLD:
+                
+                # 取得關聯資料
+                fish_code = self.tags.get('fish_code', 'UNKNOWN')
+                status = self.tags.get('status', 'RUN')
+                
+                # 只有在非 UNKNOWN 狀態下記錄 (可選)
+                log_data = {
+                    'fish_code': fish_code,
+                    'weight': current_weight,
+                    'status': status
+                }
+                
+                logger.info(f"🐟 [Production Log] New Fish: {log_data}")
+                
+                # 寫入資料庫
+                self.historian.log_data(log_data)
+            
+            # 更新上一次的重量，供下次比較
+            self._prev_weight = current_weight
+            
+        except Exception as e:
+            logger.error(f"Logging check failed: {e}")
 
     def get_snapshot(self) -> dict:
         return self.tags
@@ -63,12 +116,8 @@ class RealGateway(BaseGateway):
             max_retries=3,
             retry_delay=2.0
         )
-        self.history_interval = config.get('history_interval', 5.0)
         
-        # [修改] 將設定檔中的地址對應表傳給 Parser
         self.parser = TagParser(config['plc']['registers']['map'])
-        
-        # [修改] 從設定檔讀取讀取範圍
         self.start_addr = config['plc']['registers']['read_start']
         self.read_count = config['plc']['registers']['read_count']
         self.reconnect_attempts = 0
@@ -84,7 +133,6 @@ class RealGateway(BaseGateway):
         self.client.close()
 
     async def tick(self):
-        # Check if we need to reconnect
         if not self.client.connected and self.reconnect_attempts < self.max_reconnect_attempts:
             logger.info(f"Attempting to reconnect to PLC (attempt {self.reconnect_attempts + 1})")
             if await self.client.connect():
@@ -95,38 +143,18 @@ class RealGateway(BaseGateway):
                 return
         
         if not self.client.connected:
-            logger.error("Cannot read from PLC: not connected")
             return
             
-        # [修改] 使用設定檔中的地址與長度
+        # 讀取暫存器
         regs = await self.client.read_holding_registers(self.start_addr, self.read_count)
         
         if regs:
-            # Reset reconnect attempts on successful read
             self.reconnect_attempts = 0
-            
             # 解析數據
             parsed_data = self.parser.parse_block(regs, self.start_addr)
             
+            # 更新每一個 Tag
             for key, val in parsed_data.items():
                 self.update_tag(key, val)
-                
-            # 定期寫入歷史 (每 5 秒)
-            if time.time() - self.last_update > self.history_interval:
-                if 'fish_code' in self.tags:
-                     self.historian.log_data(self.tags)
-                self.last_update = time.time()
         else:
             logger.warning("Failed to read from PLC, connection may be lost")
-
-class SimGateway(BaseGateway):
-    async def tick(self):
-        import random
-        statuses = ["RUN", "IDLE", "ALARM"]
-        current_status = statuses[0] if random.random() > 0.1 else statuses[1]
-        
-        self.update_tag("status", current_status)
-        self.update_tag("weight", round(random.uniform(0, 3.0), 2))
-        
-        fish_codes = ["F001", "F002", "F003"]
-        self.update_tag("fish_code", random.choice(fish_codes))

@@ -43,14 +43,75 @@ class ModbusClient:
         except Exception as e:
             logger.error(f"Error closing connection: {e}")
 
+    async def _execute_command(self, func, *args, **kwargs):
+        """
+        通用執行 Modbus 指令的 helper。
+        自動處理 'slave', 'unit' 的相容性問題。
+        """
+        slave_id = 1
+        
+        # Strategy 1: 嘗試使用標準 'slave' 關鍵字 (v3.x)
+        try:
+            kwargs['slave'] = slave_id
+            return await func(*args, **kwargs)
+        except TypeError as e_slave:
+            if "unexpected keyword argument 'slave'" not in str(e_slave):
+                # 如果錯誤不是關於 slave 參數，則直接拋出
+                raise e_slave
+            
+            # Strategy 2: 嘗試使用舊版 'unit' 關鍵字 (v2.x)
+            kwargs.pop('slave', None)
+            try:
+                kwargs['unit'] = slave_id
+                return await func(*args, **kwargs)
+            except TypeError as e_unit:
+                if "unexpected keyword argument 'unit'" not in str(e_unit):
+                    raise e_unit
+
+                # Strategy 3: 放棄指定 slave ID，使用預設值
+                # 既然連線成功且能呼叫，這表示不需要顯式傳遞 slave ID
+                # 將警告降級為 debug 以保持日誌乾淨
+                logger.debug(f"Modbus call fallback: ignoring slave ID (using default). Error was: {e_unit}")
+                kwargs.pop('unit', None)
+                return await func(*args, **kwargs)
+
     async def read_holding_registers(self, address: int, count: int):
-        """讀取保持暫存器 (Holding Registers) with error handling"""
+        """
+        讀取保持暫存器 (Holding Registers) with error handling & chunking.
+        如果 count > 125，自動拆分為多個請求。
+        """
         if not self.connected:
             logger.warning("Cannot read: not connected to PLC")
             return None
+
+        # Modbus TCP limit per request is usually 125 registers
+        MAX_READ_SIZE = 125
+        
+        # 如果請求數量在限制內，直接執行
+        if count <= MAX_READ_SIZE:
+            return await self._read_chunk(address, count)
+        
+        # 如果超過限制，進行拆分讀取 (Chunking)
+        full_data = []
+        for i in range(0, count, MAX_READ_SIZE):
+            chunk_addr = address + i
+            chunk_count = min(MAX_READ_SIZE, count - i)
+            
+            chunk_data = await self._read_chunk(chunk_addr, chunk_count)
+            if chunk_data is None:
+                # 任何一個區塊失敗，視為整體失敗
+                return None
+            
+            full_data.extend(chunk_data)
+            
+        return full_data
+
+    async def _read_chunk(self, address: int, count: int):
+        """實際執行單次讀取請求 (內部使用)"""
         try:
-            # slave=1 是 Modbus TCP 的預設 Unit ID
-            rr = await self.client.read_holding_registers(address, count, slave=1)
+            # 使用 kwargs 傳遞 count，避免位置參數錯誤
+            rr = await self._execute_command(self.client.read_holding_registers, address, count=count)
+            
             if rr.isError():
                 logger.error(f"Modbus Read Error at {address}: {rr}")
                 return None
@@ -66,7 +127,9 @@ class ModbusClient:
             logger.warning("Cannot write: not connected to PLC")
             return False
         try:
-            rr = await self.client.write_register(address, value, slave=1)
+            # 使用 kwargs 傳遞 value，避免位置參數錯誤
+            rr = await self._execute_command(self.client.write_register, address, value=value)
+            
             if rr.isError():
                 logger.error(f"Modbus Write Error at {address}: {rr}")
                 return False

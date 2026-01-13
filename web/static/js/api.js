@@ -56,13 +56,6 @@ export async function getHistoryData(query = {}) {
   return await r.json();
 }
 
-// [新增] 生成測試資料 (Debug)
-export async function seedTestData() {
-  const r = await fetch('/api/debug/seed', { method: 'POST' });
-  if (!r.ok) throw new Error('Seeding failed');
-  return await r.json();
-}
-
 // --- 分規設定 / 配方管理相關 API ---
 
 export async function getRecipe(fishCode) {
@@ -89,12 +82,4 @@ export async function writeRecipeToPLC(fishCode, params) {
   });
   if (!r.ok) throw new Error('Failed to write to PLC');
   return await r.json();
-}
-
-export async function writeTag(tag, value) {
-  return fetch(`/write/${tag}`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ value })
-  });
 }

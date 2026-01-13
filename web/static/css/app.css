@@ -68,6 +68,35 @@ body {
   padding: 16px;
 }
 
+/* ===== Dashboard Status Cards (新增) ===== */
+/* 運轉中 (RUN) - 綠色系 */
+.status-run {
+  background-color: #dcfce7 !important; /* green-100 */
+  border-left: 8px solid #22c55e !important; /* green-500 */
+  color: #14532d; /* green-900 */
+}
+
+/* 待機中 (IDLE) - 黃色系 */
+.status-idle {
+  background-color: #fef9c3 !important; /* yellow-100 */
+  border-left: 8px solid #eab308 !important; /* yellow-500 */
+  color: #713f12; /* yellow-900 */
+}
+
+/* 異常 (ALARM) - 紅色系 */
+.status-alarm {
+  background-color: #fee2e2 !important; /* red-100 */
+  border-left: 8px solid #ef4444 !important; /* red-500 */
+  color: #7f1d1d; /* red-900 */
+}
+
+/* 停止 (STOP) - 灰色系 */
+.status-stop {
+  background-color: #f3f4f6 !important; /* gray-100 */
+  border-left: 8px solid #6b7280 !important; /* gray-500 */
+  color: #1f2937; /* gray-800 */
+}
+
 /* ===== Mobile ===== */
 @media (max-width: 768px) {
   .layout {

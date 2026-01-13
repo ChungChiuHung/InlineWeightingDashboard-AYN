@@ -1,25 +1,21 @@
 # 系統設定
 system:
   name: "PLC Gateway"
-  version: "2.4.0"
-  simulation_mode: true
+  version: "2.5.1"
   history_interval: 5.0
-  simulation:
-    weight_update_interval: 1.0
-    fish_update_interval: 600.0
 
 # PLC 連線設定
 plc:
-  host: "192.168.1.5"  # 請修改為實際 PLC IP
-  port: 502
+  host: "127.0.0.1"    # 對應 simulated_plc_server.py
+  port: 5020           # 對應 simulated_plc_server.py
   poll_interval: 0.1   # 輪詢頻率 (秒)
   
   # [關鍵] 暫存器地址設定
-  # Gateway (讀取範圍), Parser (解析邏輯), WriteController (寫入地址) 都依賴此設定
   registers:
-    # [修改] 擴大讀取範圍以涵蓋 40001 ~ 40132
+    # [修正] 擴大讀取範圍以涵蓋 Count (40141)
+    # 40001 + 150 = 40151
     read_start: 40001
-    read_count: 132  # 讀取長度
+    read_count: 150
 
     map:
       weight_now: 40001         # 即時重量 (Dword)
@@ -27,20 +23,15 @@ plc:
       
       # 唯讀監控資料 (R2014~)
       bucket_data_start: 40015
-      
-      # 分規 2-7 的唯讀最小值 (R2042~, 40043)
       bucket_ro_min_start: 40043
-      
-      # 分規設定寫入區 (R2100~, 40101)
-      # 包含 Bucket 1 (Min, Max, Target) + Bucket 2-7 (Max, Target)
       bucket_settings_start: 40101
-
-      fish_code: 40131          # 魚種代碼
-
-# 資料庫設定 (解決 KeyError: 'database')
+      
+      fish_code: 40131          # 魚種代碼 (String)
+      status: 40135             # 機台狀態 (Word)
+      production_count: 40141   # [新增] 生產計數 (Dword)
+      
 database:
   path: "data/history.db"
 
-# Log 設定
 logging:
   level: "INFO"
