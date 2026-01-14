@@ -1,4 +1,4 @@
-import { getFishTypes, getSystemStatus, getRecipe, saveRecipe, writeRecipeToPLC } from './api.js';
+import { getFishTypes, getSystemStatus, getRecipe, saveRecipe, writeRecipeToPLC, setCategory } from './api.js';
 
 let fishList = [];
 
@@ -49,9 +49,10 @@ function renderTable(data = {}) {
         const maxVal = data[`cfg_b${i}_max`] !== undefined ? data[`cfg_b${i}_max`] : '';
         const targetVal = data[`cfg_b${i}_target`] !== undefined ? data[`cfg_b${i}_target`] : '';
 
-        // Bucket 1 Min 可編輯，其他 Bucket Min 為唯讀
-        const isMinEditable = (i === 1);
-        const bgMin = isMinEditable ? 'bg-white' : 'bg-gray-100 text-gray-500';
+        // [修改] 解除限制：讓所有分規的最小值 (Min) 都可以輸入
+        // 原本邏輯：const isMinEditable = (i === 1);
+        const isMinEditable = true; 
+        const bgMin = 'bg-white';
 
         html += `
         <tr class="hover:bg-gray-50 transition">
@@ -60,7 +61,7 @@ function renderTable(data = {}) {
             <td class="px-6 py-2">
                 <input type="number" data-key="cfg_b${i}_min" value="${minVal}" 
                     class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none ${bgMin}"
-                    ${!isMinEditable ? 'disabled' : ''} placeholder="${isMinEditable ? '輸入數值' : '--'}">
+                    placeholder="輸入數值">
             </td>
             
             <td class="px-6 py-2">
@@ -140,18 +141,16 @@ window.loadFromPLC = async function() {
     try {
         const status = await getSystemStatus();
         
-        // [修正] 自動同步選單，若不存在則動態新增選項
+        // 自動同步選單，若不存在則動態新增選項
         if (status.fish_code && status.fish_code !== '----') {
             let option = select.querySelector(`option[value="${status.fish_code}"]`);
             
             if (!option) {
-                // 如果本地清單沒有這個代碼，新增一個臨時選項
                 console.warn(`PLC fish code [${status.fish_code}] not found in local list. Adding temporary option.`);
                 option = document.createElement('option');
                 option.value = status.fish_code;
-                // 顯示為 (未設定名稱) 以提示使用者
                 option.innerText = `${status.fish_code} (未設定名稱)`;
-                option.classList.add('text-red-500'); // 紅色字體提示
+                option.classList.add('text-red-500'); 
                 select.appendChild(option);
             }
             
@@ -214,16 +213,21 @@ window.writeToPLC = async function() {
     const sel = document.getElementById('fish-select');
     const fishName = sel.options[sel.selectedIndex].text;
 
-    if(!confirm(`⚠️ 警告：這將會覆蓋 PLC 設備上 [${fishName}] 的設定值！\n確定要寫入嗎？`)) return;
+    // 更新確認訊息，提醒使用者這會一併變更 PLC 上的生產魚種
+    if(!confirm(`⚠️ 警告：這將會覆蓋 PLC 設備上 [${fishName}] 的設定值，\n並將 PLC 當前魚種設定為 [${code}]！\n\n確定要寫入嗎？`)) return;
 
     const statusMsg = document.getElementById('status-msg');
     statusMsg.innerText = "正在寫入設備...";
     statusMsg.className = "text-blue-600";
 
     try {
+        // 步驟 1: 寫入分規參數
         await writeRecipeToPLC(code, params);
         
-        alert("寫入設備成功！");
+        // 步驟 2: 寫入魚種代碼
+        await setCategory(code);
+        
+        alert("寫入設備成功！ (參數與魚種已更新)");
         statusMsg.innerText = "寫入完成";
         statusMsg.className = "text-green-600 font-bold";
         

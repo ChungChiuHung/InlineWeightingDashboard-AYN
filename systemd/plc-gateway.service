@@ -1,0 +1,25 @@
+[Unit]
+Description=PLC Gateway Service
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+# 請修改為執行此程式的 Linux 使用者 (例如 pi 或 root)
+User=jhs96766002
+
+# 專案根目錄路徑
+WorkingDirectory=/opt/plc-system/gateway
+
+# 啟動指令 (指向 venv 中的 uvicorn)
+# 確保路徑正確，host 設為 0.0.0.0 以便外部存取
+ExecStart=/opt/plc-system/gateway/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+
+# 自動重啟設定
+Restart=always
+RestartSec=5
+
+# 環境變數 (若需要)
+# Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

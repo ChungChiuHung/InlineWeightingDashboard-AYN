@@ -11,7 +11,6 @@
             <h2 class="text-2xl font-bold text-gray-800">魚種分類管理</h2>
             <p class="text-gray-500 text-sm">設定 PLC 代碼與魚種名稱的對照表資料庫</p>
         </div>
-        <!-- 已移除右上角動態狀態卡片，保持介面靜態穩定 -->
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -24,9 +23,7 @@
                     <h3 class="text-lg font-semibold text-gray-700">
                         <i class="fa-solid fa-pen-to-square mr-2"></i>編輯 / 新增
                     </h3>
-                    <button onclick="toggleBatchModal()" class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 transition">
-                        <i class="fa-solid fa-file-csv mr-1"></i> 批量匯入
-                    </button>
+                    <!-- [移除] 批量匯入按鈕 -->
                 </div>
                 
                 <form id="category-form" class="space-y-4">
@@ -86,37 +83,7 @@
     </div>
 </div>
 
-<!-- Batch Import Modal -->
-<div id="batch-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden">
-        <div class="bg-indigo-600 px-6 py-4 flex justify-between items-center">
-            <h3 class="text-white font-bold text-lg"><i class="fa-solid fa-file-import mr-2"></i>批量匯入魚種</h3>
-            <button onclick="toggleBatchModal()" class="text-white hover:text-gray-200">
-                <i class="fa-solid fa-xmark text-xl"></i>
-            </button>
-        </div>
-        <div class="p-6">
-            <p class="text-sm text-gray-600 mb-4">
-                請輸入多筆資料，每行一筆。格式為：<code class="bg-gray-100 px-1 rounded">代碼,名稱</code><br>
-                例如：<br>
-                <code class="block bg-gray-50 p-2 mt-1 text-xs border rounded">
-                    F005,秋刀魚<br>
-                    F006,石斑魚<br>
-                    A101,頂級鮭魚
-                </code>
-            </p>
-            <textarea id="batch-input" rows="8" class="w-full border border-gray-300 rounded-md p-3 font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="F001,白鯧..."></textarea>
-            
-            <div id="batch-status" class="mt-2 text-sm text-gray-500 h-6"></div>
-        </div>
-        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-            <button onclick="toggleBatchModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md">取消</button>
-            <button onclick="processBatchImport()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 shadow-sm">
-                開始匯入
-            </button>
-        </div>
-    </div>
-</div>
+<!-- [移除] Batch Import Modal -->
 
 {% endblock %}
 

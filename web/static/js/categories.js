@@ -3,7 +3,6 @@ import { getFishTypes, saveFishType, deleteFishType, setCategory } from './api.j
 // 等待 DOM 載入後執行初始化
 document.addEventListener('DOMContentLoaded', () => {
     fetchList();
-    // 移除 WebSocket 初始化，保持頁面靜態
     setupForm();
 });
 
@@ -13,7 +12,7 @@ async function fetchList() {
     try {
         const data = await getFishTypes();
         
-        // 更新計數 (防呆檢查)
+        // 更新計數
         const countEl = document.getElementById('list-count');
         if(countEl) countEl.innerText = `${data.length} 筆`;
 
@@ -30,7 +29,7 @@ async function fetchList() {
 
 function renderTable(list) {
     const tbody = document.getElementById('table-body');
-    if (!tbody) return; // 防呆
+    if (!tbody) return;
 
     tbody.innerHTML = '';
 
@@ -40,7 +39,6 @@ function renderTable(list) {
     }
 
     list.forEach(item => {
-        // 移除 isActive 判斷，所有項目樣式一致
         const tr = document.createElement('tr');
         tr.className = `transition border-b border-gray-100 last:border-0 hover:bg-gray-50`;
         
@@ -69,7 +67,6 @@ function setupForm() {
     const form = document.getElementById('category-form');
     const btnClear = document.getElementById('btn-clear');
 
-    // 防禦性檢查：確保元素存在才綁定事件
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -110,7 +107,6 @@ function setupForm() {
 
 // --- 3. Interactions ---
 
-// 將函式明確掛載到 window，供 HTML onclick 屬性呼叫
 window.setProduction = async function(code) {
     if(!confirm(`確定要將代碼 [${code}] 設定為目前生產魚種嗎？\n(這會將代碼寫入 PLC)`)) return;
     try {
@@ -148,68 +144,4 @@ window.editItem = function(code, name) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// --- 4. Batch Import Logic ---
-
-window.toggleBatchModal = function() {
-    const modal = document.getElementById('batch-modal');
-    if(!modal) return;
-    
-    modal.classList.toggle('hidden');
-    if (!modal.classList.contains('hidden')) {
-        const input = document.getElementById('batch-input');
-        const status = document.getElementById('batch-status');
-        if(input) input.focus();
-        if(status) status.innerText = '';
-    }
-};
-
-window.processBatchImport = async function() {
-    const inputEl = document.getElementById('batch-input');
-    const statusEl = document.getElementById('batch-status');
-    
-    if (!inputEl || !statusEl) return;
-    
-    const input = inputEl.value;
-    if (!input.trim()) return;
-
-    const lines = input.split('\n');
-    let successCount = 0;
-    let failCount = 0;
-
-    statusEl.innerText = '處理中...';
-
-    for (const line of lines) {
-        if (!line.trim()) continue;
-        
-        let parts = line.split(',');
-        if (parts.length < 2) parts = line.split(/\s+/); 
-
-        const code = parts[0]?.trim().toUpperCase();
-        const name = parts[1]?.trim();
-
-        if (code && name && code.length === 4) {
-            try {
-                await saveFishType(code, name);
-                successCount++;
-            } catch (e) {
-                console.warn(`Failed line: ${line}`, e);
-                failCount++;
-            }
-        } else {
-            failCount++;
-        }
-        
-        statusEl.innerText = `進度: 成功 ${successCount} / 失敗 ${failCount}`;
-    }
-
-    statusEl.innerText = `完成！成功匯入 ${successCount} 筆，失敗/格式錯誤 ${failCount} 筆。`;
-    
-    fetchList();
-    
-    if (failCount === 0) {
-        setTimeout(() => {
-            window.toggleBatchModal();
-            inputEl.value = ''; 
-        }, 1500);
-    }
-};
+// [移除] 批量匯入相關函式 (toggleBatchModal, processBatchImport)
