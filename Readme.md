@@ -1,8 +1,3 @@
-以下是將 **systemd 自動重啟（/status → 503）設定流程**整理成 **Markdown 文件**，可直接存成 `plc-gateway-systemd.md` 使用。
-
----
-
-```md
 # PLC Gateway systemd 自動重啟設定說明
 
 本文件說明如何使用 **systemd + HTTP health check**，在 PLC Gateway 回傳 **HTTP 503（不健康）** 時，自動重啟服務。
