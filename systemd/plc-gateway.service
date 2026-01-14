@@ -5,8 +5,7 @@ Wants=network-online.target
 
 [Service]
 # 請修改為執行此程式的 Linux 使用者 (例如 pi 或 root)
-User=jhs96766002
-
+User=my_user-name
 # 專案根目錄路徑
 WorkingDirectory=/opt/plc-system/gateway
 
