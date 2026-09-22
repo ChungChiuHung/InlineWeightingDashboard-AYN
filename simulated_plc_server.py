@@ -12,6 +12,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("plc-sim")
 
+# 抑制新版 pymodbus 吵雜的 v4 棄用警告
+logging.getLogger("pymodbus").setLevel(logging.ERROR)
+
 # --- Import 檢查 ---
 try:
     import pymodbus
@@ -67,9 +70,9 @@ REG_STATUS = 40135          # Word (1: RUN, 2: IDLE...)
 REG_FISH_COUNT = 40141      # Dword (累計產量)
 
 class PLCSimulator:
-    def __init__(self, context):
-        self.context = context
-        self.slave_id = 1
+    def __init__(self, store):
+        # 直接接收 ModbusSlaveContext (store) 進行操作，避開 context[slave_id] 的舊語法
+        self.store = store
         
         # 生產參數
         self.production_interval = 3.0
@@ -104,34 +107,50 @@ class PLCSimulator:
         self._write_dword(40113, 900)
 
     # --- Register Helper Methods ---
+    def _get_values_array(self):
+        return self.store.simdata[0].values
+        
     def _write_string(self, address, text):
         b = text.encode('ascii')
         while len(b) < 4: b += b'\x00'
         val1 = (b[0] << 8) | b[1]
         val2 = (b[2] << 8) | b[3]
-        self.context[self.slave_id].setValues(3, address, [val1, val2])
+        offset = address - START_ADDRESS
+        arr = self._get_values_array()
+        arr[offset] = val1
+        arr[offset + 1] = val2
 
     def _write_dword(self, address, value):
         """寫入 32-bit (Big Endian)"""
         high = (value >> 16) & 0xFFFF
         low = value & 0xFFFF
-        self.context[self.slave_id].setValues(3, address, [high, low])
+        offset = address - START_ADDRESS
+        arr = self._get_values_array()
+        arr[offset] = high
+        arr[offset + 1] = low
 
     def _read_dword(self, address):
-        vals = self.context[self.slave_id].getValues(3, address, 2)
-        return (vals[0] << 16) | vals[1]
+        offset = address - START_ADDRESS
+        arr = self._get_values_array()
+        val1 = arr[offset]
+        val2 = arr[offset + 1]
+        return (val1 << 16) | val2
 
     def _read_fish_code(self):
-        vals = self.context[self.slave_id].getValues(3, REG_FISH_CODE, 2)
+        offset = REG_FISH_CODE - START_ADDRESS
+        arr = self._get_values_array()
+        val1 = arr[offset]
+        val2 = arr[offset + 1]
         try:
-            b = struct.pack('>HH', vals[0], vals[1])
+            b = struct.pack('>HH', val1, val2)
             return b.decode('ascii').strip('\x00')
         except:
             return "UNKNOWN"
             
     def _update_status_register(self, status_code):
         self.current_status = status_code
-        self.context[self.slave_id].setValues(3, REG_STATUS, [status_code])
+        arr = self._get_values_array()
+        arr[REG_STATUS - START_ADDRESS] = status_code
 
     # --- Main Loops ---
     async def run(self):
@@ -147,9 +166,17 @@ class PLCSimulator:
             try:
                 now = datetime.now()
                 vals = [now.year, now.month, now.day, now.hour, now.minute, now.second]
-                self.context[self.slave_id].setValues(3, REG_TIME_START, vals)
-                self.context[self.slave_id].setValues(3, REG_TIME_END, vals)
+
+                arr = self._get_values_array()
+
+                offset_start = REG_TIME_START - START_ADDRESS
+                arr[offset_start: offset_start+6] = vals
+
+                offset_end = REG_TIME_END - START_ADDRESS
+                arr[offset_end: offset_end+6] = vals
+
                 await asyncio.sleep(1.0)
+
             except Exception as e:
                 logger.error(f"Clock error: {e}")
                 await asyncio.sleep(1)
@@ -249,8 +276,11 @@ class PLCSimulator:
         self._write_dword(REG_WEIGHT_NOW, 0)
 
 async def main():
+    # 將 Holding Register 區塊獨立出來
+    hr_block = ModbusSequentialDataBlock(START_ADDRESS, [0] * REGISTER_COUNT)
+
     store = ModbusSlaveContext(
-        hr=ModbusSequentialDataBlock(START_ADDRESS, [0] * REGISTER_COUNT),
+        hr=hr_block,
         ir=ModbusSequentialDataBlock(START_ADDRESS, [0] * REGISTER_COUNT),
         co=ModbusSequentialDataBlock(START_ADDRESS, [0] * REGISTER_COUNT),
         di=ModbusSequentialDataBlock(START_ADDRESS, [0] * REGISTER_COUNT)
@@ -258,7 +288,8 @@ async def main():
     slaves = {1: store}
     context = ModbusServerContext(slaves, single=False)
     
-    sim = PLCSimulator(context)
+    # 直接將 store 傳入 Simulator，取代原本的 context
+    sim = PLCSimulator(hr_block)
     
     identity = None
     if ModbusDeviceIdentification:

@@ -34,14 +34,13 @@ except Exception as e:
     logger.error(f"Failed to load configuration: {e}")
     raise
 
-# 初始化元件
+# 初始化基礎元件 (不涉及 Event Loop 的可以放全域)
 ws_hub = WsHub()
 historian = Historian(config['database']['path'])
 
-# 強制使用真實模式 (Real Mode)
-logger.info("Starting in REAL mode - connecting to PLC")
-gateway = RealGateway(config, historian, ws_hub)
-write_controller = WriteController(gateway)
+# 先宣告全域變數，稍後在 lifespan 內初始化
+gateway = None
+write_controller = None
 
 # --- 資料模型定義 ---
 class FishTypeItem(BaseModel):
@@ -52,13 +51,21 @@ class RecipeItem(BaseModel):
     fish_code: str
     params: dict 
 
-# --- FastAPI 生命周期 ---
+# --- FastAPI 生命周期 (統一在這裡初始化非同步元件) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global gateway, write_controller
     try:
         logger.info("Initializing database...")
         historian.init_db()
-        logger.info("Starting gateway...")
+        
+        logger.info("Starting in REAL mode - connecting to PLC")
+        # 1. 在 Event Loop 建立後，實例化 Gateway
+        gateway = RealGateway(config, historian, ws_hub)
+        # 2. 將建立好的 gateway 傳入 WriteController
+        write_controller = WriteController(gateway)
+        
+        logger.info("Starting gateway tasks...")
         asyncio.create_task(gateway.start())
         logger.info("Application startup complete")
         yield
@@ -67,9 +74,11 @@ async def lifespan(app: FastAPI):
         raise
     finally:
         logger.info("Shutting down gateway...")
-        await gateway.stop()
+        if gateway:
+            await gateway.stop()
         logger.info("Application shutdown complete")
 
+# 建立 FastAPI 應用程式，並綁定 lifespan
 app = FastAPI(lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
@@ -79,33 +88,35 @@ templates.env.globals['v'] = "2.9.0"
 # --- Page Routes ---
 @app.get("/")
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request})
 
 @app.get("/ui/categories")
 async def categories_page(request: Request):
-    return templates.TemplateResponse("categories.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="categories.html", context={"request": request})
 
 @app.get("/ui/history")
 async def history_page(request: Request):
-    return templates.TemplateResponse("history.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="history.html", context={"request": request})
 
 @app.get("/ui/buckets")
 async def buckets_page(request: Request):
-    return templates.TemplateResponse("buckets.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="buckets.html", context={"request": request})
 
 @app.get("/ui/system")
 async def system_page(request: Request):
-    return templates.TemplateResponse("system.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="system.html", context={"request": request})
 
 # --- Data API Routes ---
 @app.get("/api/status")
 async def get_system_status():
+    if not gateway:
+        raise HTTPException(status_code=503, detail="Gateway initializing")
     return gateway.get_snapshot()
 
 @app.get("/status")
 async def health_check():
     try:
-        if not gateway.running:
+        if not gateway or not gateway.running:
             raise HTTPException(status_code=503, detail="Gateway not running")
         
         if hasattr(gateway, 'last_update'):
@@ -184,6 +195,9 @@ async def set_category(data: dict):
     if not code or len(code) != 4 or not code.isalnum():
         raise HTTPException(status_code=400, detail="Invalid code format")
     
+    if not write_controller:
+        raise HTTPException(status_code=503, detail="Write controller not ready")
+        
     success = await write_controller.set_fish_type(code)
     if not success:
         raise HTTPException(status_code=503, detail="Failed to write to PLC (Check connection)")
@@ -204,6 +218,9 @@ async def write_recipe_plc(item: RecipeItem):
     if not item.params:
         raise HTTPException(status_code=400, detail="No parameters to write")
 
+    if not write_controller:
+        raise HTTPException(status_code=503, detail="Write controller not ready")
+
     success = await write_controller.write_recipe(item.params)
     if not success:
         raise HTTPException(status_code=503, detail="Failed to write recipe to PLC (Partial or Total Failure)")
@@ -216,9 +233,10 @@ async def websocket_endpoint(websocket: WebSocket):
     
     # 建立連線時發送初始快照
     try:
-        current_data = gateway.get_snapshot()
-        if current_data:
-            await websocket.send_json(current_data)
+        if gateway:
+            current_data = gateway.get_snapshot()
+            if current_data:
+                await websocket.send_json(current_data)
     except Exception as e:
         logger.error(f"Error sending initial snapshot: {e}")
 
